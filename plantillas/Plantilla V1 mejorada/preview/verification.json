@@ -1,0 +1,268 @@
+{
+  "checks": [
+    {
+      "file": "buscar-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "buscar-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "buscar-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-chill-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-chill-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-chill-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-completo-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-completo-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-completo-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-multiclase-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-multiclase-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-multiclase-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-uno-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-uno-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-uno-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-vacio-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-vacio-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "leaderboard-vacio-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-completo-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-completo-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-completo-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "registro-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "registro-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "registro-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    }
+  ],
+  "contrasts": [
+    {
+      "role": "Main content",
+      "text": "#f7f8fb",
+      "surface": "#111218",
+      "ratio": 17.6
+    },
+    {
+      "role": "Secondary content",
+      "text": "#b7b9c6",
+      "surface": "#111218",
+      "ratio": 9.58
+    },
+    {
+      "role": "Gold podium",
+      "text": "#e9cd85",
+      "surface": "#322820",
+      "ratio": 9.27
+    },
+    {
+      "role": "Silver podium",
+      "text": "#c9d1e2",
+      "surface": "#1e202b",
+      "ratio": 10.57
+    },
+    {
+      "role": "Bronze podium",
+      "text": "#e2ac8a",
+      "surface": "#1e202b",
+      "ratio": 8.1
+    }
+  ],
+  "failed": []
+}

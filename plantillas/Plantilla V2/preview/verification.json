@@ -1,0 +1,202 @@
+{
+  "checks": [
+    {
+      "file": "buscar-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "buscar-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "buscar-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-chill-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-chill-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-chill-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-completo-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-completo-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "equipo-completo-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-completo-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-completo-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "perfil-completo-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "registro-390.html",
+      "width": 320,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "registro-390.html",
+      "width": 390,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    },
+    {
+      "file": "registro-720.html",
+      "width": 720,
+      "brokenImages": 0,
+      "overflow": [],
+      "pageOverflow": false
+    }
+  ],
+  "contrasts": [
+    {
+      "role": "Light content",
+      "text": "#1d1d1f",
+      "surface": "#f5f5f7",
+      "ratio": 15.46
+    },
+    {
+      "role": "Light secondary",
+      "text": "#62626b",
+      "surface": "#f5f5f7",
+      "ratio": 5.54
+    },
+    {
+      "role": "Light accent",
+      "text": "#c51b34",
+      "surface": "#f5f5f7",
+      "ratio": 5.39
+    },
+    {
+      "role": "Light status",
+      "text": "#246447",
+      "surface": "#e9f3ec",
+      "ratio": 6.19
+    },
+    {
+      "role": "Dark content",
+      "text": "#f5f5f7",
+      "surface": "#17171a",
+      "ratio": 16.43
+    },
+    {
+      "role": "Dark secondary",
+      "text": "#b6b6bf",
+      "surface": "#17171a",
+      "ratio": 8.89
+    },
+    {
+      "role": "Dark accent",
+      "text": "#ff8092",
+      "surface": "#17171a",
+      "ratio": 7.46
+    },
+    {
+      "role": "Dark status",
+      "text": "#90d5aa",
+      "surface": "#203b2c",
+      "ratio": 7.13
+    }
+  ],
+  "failed": []
+}

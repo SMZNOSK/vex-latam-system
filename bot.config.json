@@ -1,0 +1,11 @@
+{
+  "guildName": "VLS´ EXPERIMENTS",
+  "registrationChannelName": "registro-de-datos",
+  "searchChannelName": "buscar-equipo",
+  "createSearchChannelIfMissing": true,
+  "searchLifetimeMinutes": 60,
+  "searchCooldownSeconds": 120,
+  "rolePingCooldownMinutes": 10,
+  "trackerEnabled": true,
+  "trackerCacheMinutes": 10
+}
