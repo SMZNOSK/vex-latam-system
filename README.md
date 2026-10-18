@@ -58,6 +58,12 @@ La migración a **SQLite v3** genera un respaldo coherente antes de agregar tabl
 
 Usa **Node.js 24 o superior**. Las dependencias están instaladas; en otra máquina ejecuta `npm.cmd ci`.
 El token se guarda en `.env`, nunca en el código ni en mensajes. Inicia con `iniciar-bot.cmd` o `npm.cmd start`.
+
+En una laptop Windows con Node.js y npm instalados, abre `iniciar-bot.cmd`: comprueba las dependencias y sus versiones, instala las que falten con `npm.cmd ci` y prueba que el navegador pueda generar imágenes. Reutiliza Chrome, Edge o Chromium; si ninguno funciona, descarga Chromium automáticamente. Si configuraste `VEX_BROWSER_PATH`, debes corregir o retirar esa ruta si apunta a un navegador de la otra laptop. Necesita internet para las descargas y para conectar a Discord. No requiere permisos de administrador.
+
+Si falta `.env`, el iniciador lo crea desde `.env.example` y se detiene para que completes la configuración; nunca reemplaza un `.env` existente. Para trasladar el bot, detén primero la copia anterior y luego copia el proyecto con `.env`, `bot.config.json`, toda la carpeta `data` y sus recursos gráficos. Puedes omitir `node_modules`. Ejecuta el bot en una sola laptop a la vez; el bloqueo local no detecta procesos de otra computadora. No copies una base de datos mientras el bot siga escribiendo en ella.
+
+`iniciar-bot.cmd --preparar` instala y verifica lo necesario sin conectar a Discord. El inicio normal mantiene la ventana abierta para ver los mensajes y detener el proceso con Ctrl+C. No configura el inicio automático de Windows ni las opciones de suspensión.
 Mantén la computadora y el proceso encendidos. Ctrl+C detiene el bot. `data/bot.lock` impide iniciar dos copias.
 
 En **Ajustes del servidor → Roles**, VEX LATAM SYSTEM necesita **Administrar roles, Administrar canales y Fijar mensajes**.
