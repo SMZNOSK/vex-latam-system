@@ -4,6 +4,7 @@ import path from 'node:path';
 import { config, dataDir } from './config.js';
 import { operatorIds } from './admin-access.js';
 import { UserError } from './domain.js';
+import { channelDisplayName } from './channel-names.js';
 
 export async function prepareProduction(bot, guild) {
   if (guild.id !== config.productionGuildId) return;
@@ -28,17 +29,20 @@ export async function prepareProduction(bot, guild) {
   }
   const pub = bot.mailboxes.permissions(guild, me, false), priv = bot.mailboxes.permissions(guild, me, true);
   async function ensure(key, name, type, parent, hidden = false) {
+    const originalName = name;
+    name = channelDisplayName(guild.id, name);
     const ids = s.integration.resources;
     let c = ids[key] ? guild.channels.cache.get(ids[key]) : null;
     const marker = `VEX LATAM SYSTEM V1:${key}`;
     if (!c) {
-      const matches = guild.channels.cache.filter(c => c.type === type && (c.topic === marker || c.name === name && (c.parentId ?? null) === (parent ?? null)));
+      const matches = guild.channels.cache.filter(c => c.type === type && (c.topic === marker || [originalName, name].includes(c.name) && (c.parentId ?? null) === (parent ?? null)));
       if (matches.size > 1) throw new UserError(`Hay varios canales para ${name}; selecciona el correcto antes de instalar.`);
       c = matches.first();
     }
     if (!c) c = await guild.channels.create({ name, type, ...(parent ? { parent } : {}),
       ...(type === ChannelType.GuildText ? {topic:marker} : {}), permissionOverwrites:hidden ? priv : pub, reason:'Integración VEX LATAM SYSTEM V1' });
     if (c.type !== type) throw new UserError(`Tipo incorrecto en ${name}.`);
+    if (c.name !== name) await c.setName(name, 'Estilo de canales VEX LATAM SYSTEM');
     ids[key] = c.id; bot.store.saveSettings(guild.id, s); return c.id;
   }
   const admin = await ensure('adminCategory','ADMIN PANEL',ChannelType.GuildCategory,null,true);

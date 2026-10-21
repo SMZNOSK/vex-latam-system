@@ -18,6 +18,8 @@ El permiso **Fijar mensajes** es opcional: si falta, los carteles y botones func
 
 Si está activa la incorporación de comunidad de Discord, al iniciar se añaden los canales públicos del bot a los canales predeterminados. Se conservan las preguntas y los canales previos existentes; solo se retiran referencias a canales eliminados, tras guardar un respaldo local. ADMIN PANEL queda fuera de esa lista. La selección personal de canales de un miembro antiguo puede requerir activar **Mostrar todos los canales** o añadirlos desde **Canales y roles**. Los rankings vacíos esperan la carga manual de integrantes y los buzones/equipos muestran actividad cuando se reciben envíos o búsquedas.
 
+Los canales nuevos de producción llevan un emoji Unicode y el separador `・`, definidos en `src/channel-names.js`. La preparación de buzones y clanes conserva esos nombres al reiniciar. Los enlaces y paneles usan IDs, por lo que el cambio visual no afecta sus controles ni permisos.
+
 ## Panel administrativo y buzones
 
 Al iniciar, el bot prepara la categoría **ADMIN PANEL** con **#admin-bot**, **#buzon-feedback** y **#buzon-reportes**. Solo el dueño y los miembros con el permiso real **Administrador** pueden verlos; el bot conserva su acceso. En el servidor indicado por `testGuildId` en `bot.config.json` también prepara **#pruebas-bot**. Ese canal no se crea en otros servidores.

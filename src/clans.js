@@ -10,6 +10,7 @@ import { assertAssignable } from './roles.js';
 import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 import { securePrivateChannel } from './admin-access.js';
 import { pinIfAllowed } from './pins.js';
+import { channelDisplayName } from './channel-names.js';
 import { ClanStore } from './clan-store.js';
 import { ClanRankingEditor } from './clan-ranking-editor.js';
 import { clans, clanInfo, clanProfile, clanRoster, embarkKey, clanRSWarning } from './clan-domain.js';
@@ -27,6 +28,7 @@ export class Clans {
   settings(guild){return this.bot.store.settings(guild).clans??{};}
   set(guild,key,value){const settings=this.bot.store.settings(guild);settings.clans??={};settings.clans[key]={...(settings.clans[key]??{}),...value};this.bot.store.saveSettings(guild,settings);}
   async channel(guild,name,type,parent,saved,permissions){
+    name=channelDisplayName(guild.id,name);
     let c=saved?await guild.channels.fetch(saved).catch(unknown):null;
     if(c&&c.type!==type)throw new UserError(`El destino guardado de ${name} tiene otro tipo.`);
     if(!c){const matches=guild.channels.cache.filter(c=>c.type===type&&c.name===name&&(c.parentId??null)===(parent?.id??null));if(matches.size>1)throw new UserError(`Hay varios canales ${name}. Revisa los duplicados.`);c=matches.first();}

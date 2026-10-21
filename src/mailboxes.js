@@ -8,6 +8,7 @@ import { privateFlags } from './ui.js';
 import { FeedbackQuota } from './feedback-quota.js';
 import { requireOperator, operatorIds, restrictedOperators, securePrivateChannel } from './admin-access.js';
 import { pinIfAllowed } from './pins.js';
+import { channelDisplayName } from './channel-names.js';
 
 export const mailboxChannels = {
   adminCommands: 'admin-bot', feedbackInbox: 'buzon-feedback', reportInbox: 'buzon-reportes', testing: 'pruebas-bot',
@@ -37,6 +38,7 @@ export class Mailboxes {
     ];
   }
   async ensure(guild, key, name, type, parent, permissions) {
+    name = channelDisplayName(guild.id, name);
     const saved = this.settings(guild.id).channels?.[key];
     let channel = saved ? await guild.channels.fetch(saved, { force: true }).catch(unknown) : null;
     if (channel && channel.type !== type) throw new UserError(`El canal guardado para ${name} tiene un tipo incorrecto.`);
