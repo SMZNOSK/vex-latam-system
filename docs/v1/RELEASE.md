@@ -10,6 +10,7 @@ Servidor principal: **VΞX LΛTΛM SQUΛD** (`1316232884117311558`).
 - Conserva reglas, carteles de roles externos, salas permanentes, miembros e historial. No importa perfiles, torneos ni formularios de pruebas.
 - Restringe las operaciones administrativas al propietario actual y a la cuenta autorizada; los comandos se procesan en #admin-bot.
 - Guarda una instantánea local de canales, permisos, roles y configuración antes de preparar producción. Los respaldos y las credenciales no se publican en Git.
+- Integra los canales públicos en la lista predeterminada de incorporación de Discord, preservando preguntas, canales existentes y privacidad administrativa. Los miembros con una lista personalizada pueden necesitar añadirlos a su vista.
 
 ## Funciones
 

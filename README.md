@@ -16,6 +16,8 @@ La guía HTML/CSS está en `docs/v1/index.html` y `docs/v1/guia.css`. `node --en
 
 El permiso **Fijar mensajes** es opcional: si falta, los carteles y botones funcionan y se publican sin fijar. Los canales de reglas y selección de roles existentes siguen bajo su sistema actual. El rol THE FINALS compartido con otros bots se conserva al eliminar un perfil en producción.
 
+Si está activa la incorporación de comunidad de Discord, al iniciar se añaden los canales públicos del bot a los canales predeterminados. Se conservan las preguntas y los canales previos existentes; solo se retiran referencias a canales eliminados, tras guardar un respaldo local. ADMIN PANEL queda fuera de esa lista. La selección personal de canales de un miembro antiguo puede requerir activar **Mostrar todos los canales** o añadirlos desde **Canales y roles**. Los rankings vacíos esperan la carga manual de integrantes y los buzones/equipos muestran actividad cuando se reciben envíos o búsquedas.
+
 ## Panel administrativo y buzones
 
 Al iniciar, el bot prepara la categoría **ADMIN PANEL** con **#admin-bot**, **#buzon-feedback** y **#buzon-reportes**. Solo el dueño y los miembros con el permiso real **Administrador** pueden verlos; el bot conserva su acceso. En el servidor indicado por `testGuildId` en `bot.config.json` también prepara **#pruebas-bot**. Ese canal no se crea en otros servidores.

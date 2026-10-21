@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { config, contentIntent } from './config.js';
 import { requireOperator } from './admin-access.js';
 import { prepareProduction } from './production.js';
+import { syncProductionVisibility } from './production-visibility.js';
 import { pinIfAllowed } from './pins.js';
 import { commands } from './commands.js';
 import { UserError, compatible, blockedTerm } from './domain.js';
@@ -83,6 +84,7 @@ export class VexBot {
     console.log(`VEX LATAM SYSTEM conectado en ${guild.name}. Comandos registrados.`);
     await guild.channels.fetch();
     await prepareProduction(this, guild);
+    await syncProductionVisibility(this.store, this.client.rest, guild.id).catch(e => this.log(e, 'Mostrar canales públicos en la incorporación de Discord'));
     await this.mailboxes.setup(guild).catch(e => this.log(e, 'Preparar panel administrativo y buzones; se reintentará'));
     await this.tournaments.setup(guild).catch(e => this.log(e, 'Preparar torneos; se reintentará'));
     await ensureFinalsRole(this, guild).catch(e => { this.setupPending.add(guild.id); this.log(e, 'Preparar rol THE FINALS'); });
