@@ -149,7 +149,10 @@ export async function withImage(payload, renderer, kind, data) {
 }
 
 export async function deliverCard(deliver, payload) {
-  try { return await deliver(payload); }
+  // discord.js appends uploaded files to this array. Give each delivery its own
+  // array so sharing a rendered card never creates duplicate attachment IDs.
+  const fresh = { ...payload, ...(Array.isArray(payload.attachments) ? { attachments: [...payload.attachments] } : {}) };
+  try { return await deliver(fresh); }
   catch (error) {
     if (!payload.files?.length || ![50013, 50035].includes(error.code)) throw error;
     const fallback = { ...payload, files: [], attachments: [], components: payload.components.filter(c => (c.data?.type ?? c.type) !== 12) };
