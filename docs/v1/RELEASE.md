@@ -16,6 +16,7 @@ Servidor principal: **VΞX LΛTΛM SQUΛD** (`1316232884117311558`).
 
 - Perfil opcional, RS actual separado del récord, tarjetas adaptables y patrocinadores.
 - Búsqueda de compañeros con filtros, detección en los chats configurados y voz temporal para los equipos.
+- Las búsquedas del formulario se comparten en Ranked, modos rápidos y Cobro, además del canal central: un solo equipo y cupos compartidos, copias persistentes, sin repetir la notificación al rol. Los cambios y el cierre se reflejan en todos los mensajes.
 - Feedback con anonimato opcional y tres envíos diarios por persona; reportes privados con selector de miembros.
 - Solicitudes a VXTG/VXLTM, evidencia, revisión, aprobación y tarjeta de ingreso. VXTG advierte por debajo de 20,000 RS actuales sin bloquear el envío.
 - Rankings de clanes cargados manualmente desde administración, totales reales independientes y baja de miembros.

@@ -90,7 +90,7 @@ export async function lockControlChannel(guild, channel) {
 }
 export async function relocateSearches(bot, guild, channel) {
   for (const item of bot.store.searches(guild.id)) {
-    if (item.status !== 'open' || !item.message) continue;
+    if (item.status !== 'open' || !item.message || item.filters.mode === 'HOT') continue;
     await bot.queue(`search:${item.id}`, async () => {
       let s = bot.store.search(item.id);
       if (s.channel !== channel.id) {

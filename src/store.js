@@ -212,6 +212,10 @@ export class Store {
     return this.db.prepare("SELECT id FROM searches WHERE guild=? AND status IN ('open','pending')").all(guild)
       .map(row => this.search(row.id));
   }
+  pendingSearchMirrors(guild) {
+    return this.db.prepare("SELECT id FROM searches WHERE guild=? AND json_extract(data, '$.mirrorPending')=1").all(guild)
+      .map(row => this.search(row.id));
+  }
   activeSearch(guild, host, now = Date.now()) {
     const row = this.db.prepare("SELECT id FROM searches WHERE guild=? AND host=? AND status IN ('open','pending') AND expires>? ORDER BY created LIMIT 1")
       .get(guild, host, now);
@@ -231,11 +235,11 @@ export class Store {
   insertSearch(value) {
     this.db.prepare('INSERT INTO searches VALUES (?,?,?,?,?,?,?,?,?)').run(value.id, value.guild, value.host,
       value.channel, value.message ?? null, value.status, value.expires, value.created,
-      JSON.stringify({ schemaVersion: 2, filters: value.filters, members: value.members, relocations: value.relocations ?? [] }));
+      JSON.stringify({ schemaVersion: 2, filters: value.filters, members: value.members, relocations: value.relocations ?? [], mirrors: value.mirrors ?? [], mirrorPending: value.mirrorPending ?? false }));
   }
   updateSearch(value) {
     this.db.prepare('UPDATE searches SET channel=?,message=?,status=?,data=? WHERE id=?').run(value.channel, value.message ?? null,
-      value.status, JSON.stringify({ schemaVersion: 2, filters: value.filters, members: value.members, relocations: value.relocations ?? [] }), value.id);
+      value.status, JSON.stringify({ schemaVersion: 2, filters: value.filters, members: value.members, relocations: value.relocations ?? [], mirrors: value.mirrors ?? [], mirrorPending: value.mirrorPending ?? false }), value.id);
   }
   removeSearch(id) { this.db.prepare('DELETE FROM searches WHERE id=?').run(id); }
   join(id, user, now = Date.now()) {

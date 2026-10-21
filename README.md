@@ -20,6 +20,8 @@ Si está activa la incorporación de comunidad de Discord, al iniciar se añaden
 
 Los canales nuevos de producción llevan un emoji Unicode y el separador `・`, definidos en `src/channel-names.js`. La preparación de buzones y clanes conserva esos nombres al reiniciar. Los enlaces y paneles usan IDs, por lo que el cambio visual no afecta sus controles ni permisos.
 
+Las búsquedas creadas con el formulario se publican en #equipos-del-bot y se comparten simultáneamente en los tres canales existentes de Ranked, modos rápidos y Cobro (`searchPublicationChannels`). Son copias del mismo equipo: comparten ID, integrantes, cupos, cierre y caducidad. Los IDs de los mensajes se guardan en SQLite para actualizarlos sin duplicar al reiniciar. Si una copia falla, se conserva la búsqueda y se reintenta; las copias no repiten el aviso al rol. La detección de mensajes de `/busqueda-chat` tiene su configuración independiente y las búsquedas HOT permanecen en el canal donde se escribieron. Reiniciar conserva los canales de detección elegidos por administración.
+
 ## Panel administrativo y buzones
 
 Al iniciar, el bot prepara la categoría **ADMIN PANEL** con **#admin-bot**, **#buzon-feedback** y **#buzon-reportes**. Solo el dueño y los miembros con el permiso real **Administrador** pueden verlos; el bot conserva su acceso. En el servidor indicado por `testGuildId` en `bot.config.json` también prepara **#pruebas-bot**. Ese canal no se crea en otros servidores.

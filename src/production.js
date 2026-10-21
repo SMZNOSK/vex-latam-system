@@ -64,6 +64,7 @@ export async function prepareProduction(bot, guild) {
   for(const [key,id] of [['registro',profile],['buscar',search],['reglas',mapping.rules],['roles',mapping.roleSelection]]) s.panels[key] = {...s.panels[key], channel:id};
   s.mailboxes ??= {}; s.mailboxes.channels={...s.mailboxes.channels,...channels};
   s.teamsChannel=teams; s.tournamentsChannel=mapping.tournamentAnnouncements;
+  s.searchPublicationChannels=[mapping.rankedChat,mapping.quickChat,mapping.cashoutChat];
   s.finalsRole=config.roleBindings[guild.id].finals; s.tournamentClanRole=config.roleBindings[guild.id]['clan.vxtg'];
   s.leaderboard={...s.leaderboard,channel:leaderboard}; s.memberGuide={...s.memberGuide,channel:guide};
   s.community ??= {};
@@ -75,7 +76,9 @@ export async function prepareProduction(bot, guild) {
     fields:[{name:'Tu primera partida empieza aquí',value:'01 · Lee las reglas: {reglas}\n02 · Elige tus roles: {roles}\n03 · Arma tu equipo: {buscar}\n04 · Crea o completa tu perfil: {perfil}'},
       {name:'Encuentra tu clan',value:'VXTG · Competitivo: {clan_vxtg}\nVXLTM · Comunidad: {clan_vxltm}\nCompleta tu perfil y adjunta una captura para solicitar ingreso.'}]};
   s.chatSearch ??= {enabled:true,cooldownSeconds:300};
-  Object.assign(s.chatSearch,{channel:mapping.rankedChat,channels:[mapping.rankedChat,mapping.quickChat],rolesSeeded:true,
+  s.chatSearch.channel ??= mapping.rankedChat;
+  s.chatSearch.channels ??= [mapping.rankedChat,mapping.quickChat];
+  Object.assign(s.chatSearch,{rolesSeeded:true,
     rankedRole:config.roleBindings[guild.id]['chatSearch.rankedRole'],quickRole:config.roleBindings[guild.id]['chatSearch.quickRole'],gameRole:s.finalsRole});
   s.clans ??= {}; s.clans.channels={...s.clans.channels,category:clan,inbox,rankingAdmin};
   for(const id of ['vxtg','vxltm']) {

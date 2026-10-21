@@ -4,6 +4,7 @@ import { config, contentIntent } from './config.js';
 import { requireOperator } from './admin-access.js';
 import { prepareProduction } from './production.js';
 import { syncProductionVisibility } from './production-visibility.js';
+import { SearchMirrors } from './search-mirrors.js';
 import { pinIfAllowed } from './pins.js';
 import { commands } from './commands.js';
 import { UserError, compatible, blockedTerm } from './domain.js';
@@ -41,6 +42,7 @@ export class VexBot {
     this.renderer = renderer;
     this.playerCards = playerCards;
     this.refreshPending = new Set();
+    this.searchMirrors = new SearchMirrors(this);
     this.workflows = new Workflows(this);
     this.setupPending = new Set();
     this.voiceRooms = new VoiceRooms(this);
@@ -123,7 +125,7 @@ export class VexBot {
     await this.memberGuide.setup(guild).catch(e => this.log(e, 'Publicar guía de comandos para miembros; se reintentará'));
     await this.community.reactions.reconcile(guild).catch(e => this.log(e, 'Recuperar reacciones de roles'));
     // Una publicación interrumpida antes de obtener un mensaje no debe bloquear al organizador.
-    for (const s of this.store.searches(guild.id)) {
+    for (const s of new Map([...this.store.searches(guild.id), ...this.store.pendingSearchMirrors(guild.id)].map(s => [s.id, s])).values()) {
       if (s.status === 'pending') this.store.removeSearch(s.id);
       else await this.refreshSearch(s.id).catch(e => this.log(e, 'Recuperar búsqueda'));
     }
@@ -524,7 +526,11 @@ export class VexBot {
     const channel = await this.channel(i.guild, settings.teamsChannel);
     const s = await this.publishTeam(i.guildId, i.user.id, channel, filters);
     // Un fallo de la respuesta privada no debe borrar una solicitud ya publicada.
-    return this.replyCard(i, teamPrivatePayload(s, i.user.id, 'Búsqueda publicada en #equipos.'));
+    const copies=[...new Set(settings.searchPublicationChannels??[])].filter(id=>id!==s.channel);
+    const notice=`Búsqueda publicada en <#${s.channel}>.`
+      +(copies.length?` Se comparte con el mismo equipo en ${copies.map(id=>`<#${id}>`).join(', ')}.`:'')
+      +(s.mirrorPending?' Hay copias pendientes; se reintentarán automáticamente.':'');
+    return this.replyCard(i, teamPrivatePayload(s, i.user.id, notice));
   }
   async publishTeam(guildId, host, channel, filters, { beforeSend, reply } = {}) {
     const hot = filters.mode === 'HOT';
@@ -555,25 +561,40 @@ export class VexBot {
       throw error;
     }
     if (!s.message) { this.store.removeSearch(s.id); return null; }
-    return s;
+    if (!hot) await this.searchMirrors.sync(s.id).catch(error => {
+      const latest=this.store.search(s.id);
+      if(latest){latest.mirrorPending=true;this.store.updateSearch(latest);}
+      this.refreshPending.add(s.id);this.log(error,'Compartir búsqueda; se reintentará');
+    });
+    return this.store.search(s.id);
   }
   refreshSearch(id) {
     return this.queue(`search:${id}`, async () => {
       let s = this.store.search(id);
       if (!s?.message || !this.guilds.has(s.guild)) return;
       const guild = await this.client.guilds.fetch(s.guild);
-      const channel = await guild.channels.fetch(s.channel);
-      if (!channel?.isTextBased()) { s.status = 'closed'; this.store.updateSearch(s); return; }
       s = this.store.search(id);
       if (!s) return;
-      try { await deliverCard(p => channel.messages.edit(s.message, p), await this.searchCard(s, false)); }
+      const payload=await this.searchCard(s, false);
+      let primaryError;
+      try {
+        const channel = await guild.channels.fetch(s.channel);
+        if (!channel?.isTextBased()) { s.status = 'closed'; this.store.updateSearch(s); await this.searchMirrors.sync(s.id); return; }
+        await deliverCard(p => channel.messages.edit(s.message, p), payload);
+      }
       catch (error) {
-        if ([10008, 10003].includes(error.code)) { s.status = 'closed'; this.store.updateSearch(s); return; }
-        throw error;
+        if ([10008, 10003].includes(error.code)) { s.status = 'closed'; this.store.updateSearch(s); await this.searchMirrors.sync(s.id); return; }
+        primaryError=error;
+      }
+      await this.searchMirrors.sync(s.id,payload);
+      if(primaryError){
+        const latest=this.store.search(id);if(latest){latest.mirrorPending=true;this.store.updateSearch(latest);}
+        this.refreshPending.add(id);throw primaryError;
       }
     });
   }
   async expire() {
+    for(const guild of this.guilds)for(const search of this.store.pendingSearchMirrors(guild))this.refreshPending.add(search.id);
     for (const id of this.store.expire()) await this.refreshSearch(id).catch(e => this.log(e, 'Actualizar búsqueda caducada'));
     this.workflows.drafts.expire();
     for (const id of [...this.refreshPending]) {
