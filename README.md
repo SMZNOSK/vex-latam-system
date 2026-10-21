@@ -12,7 +12,7 @@ En producción, los controles administrativos están reservados a la cuenta auto
 
 La configuración inicial de producción deja las bienvenidas y despedidas pausadas para coordinar el cambio desde Koya y Carl-bot. Tras desactivar sus mensajes duplicados, los operadores pueden habilitar `/bienvenida activar` y `/despedida activar` en #admin-bot. También se debe retirar en Carl-bot la reacción que autoasigna CLUB VXTG; no se eliminan el rol ni sus miembros actuales.
 
-La guía HTML/CSS está en `docs/v1/index.html` y `docs/v1/guia.css`. `node --env-file=.env scripts/publish-v1.js` la renderiza sin publicar; añadir `--publish` crea o actualiza la publicación del canal de actualizaciones, la guía administrativa y los enlaces de clanes. Discord recibe tres imágenes y los archivos HTML/CSS porque no ejecuta HTML en sus mensajes. Los IDs publicados quedan guardados para actualizar sin duplicar.
+La guía HTML/CSS está en `docs/v1/index.html` y `docs/v1/guia.css`. `node --env-file=.env scripts/publish-v1.js` la renderiza sin publicar; añadir `--publish` crea o actualiza la publicación del canal de actualizaciones, la guía administrativa y los enlaces de clanes. Discord recibe solo las imágenes, instrucciones y botones; el HTML/CSS se conserva en el proyecto. Añadir `--guide-only` junto con `--publish` actualiza únicamente la guía pública. Los IDs publicados quedan guardados para actualizar sin duplicar.
 
 El permiso **Fijar mensajes** es opcional: si falta, los carteles y botones funcionan y se publican sin fijar. Los canales de reglas y selección de roles existentes siguen bajo su sistema actual. El rol THE FINALS compartido con otros bots se conserva al eliminar un perfil en producción.
 

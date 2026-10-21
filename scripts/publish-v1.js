@@ -53,7 +53,7 @@ async function upsert(channel,key,body,files=[]){
   if(!old){const recent=await rest.get(Routes.channelMessages(channel),{query:new URLSearchParams({limit:'100'})});old=recent.find(m=>m.author.id===bot.id&&m.embeds?.some(e=>e.footer?.text===marker));}
   if(old&&old.author.id!==bot.id)throw new Error('La referencia de publicación no pertenece al bot.');
   const payload={...body,allowed_mentions:noMentions,embeds:body.embeds.map(e=>({...e,footer:{text:marker}})),
-    ...(files.length?{attachments:files.map((f,id)=>({id,filename:f.name,description:f.name.endsWith('.png')?'Guía V1 de VEX LATAM SYSTEM: instrucciones completas en los archivos HTML/CSS y el texto del mensaje.':undefined}))}:{})};
+    ...(files.length?{attachments:files.map((f,id)=>({id,filename:f.name,description:f.name.endsWith('.png')?'Guía visual V1 de VEX LATAM SYSTEM. Las instrucciones también están en el texto del mensaje.':undefined}))}:{})};
   const result=old?await rest.patch(Routes.channelMessage(channel,old.id),{body:payload,files})
     :await rest.post(Routes.channelMessages(channel),{body:{...payload,nonce:createHash('sha256').update(`${guild}:${key}:v1`).digest('hex').slice(0,25),enforce_nonce:true},files});
   store.db.exec('BEGIN IMMEDIATE');try{const latest=store.settings(guild);latest.integration.releaseMessages??={};latest.integration.releaseMessages[key]={channel,message:result.id};store.saveSettings(guild,latest);store.db.exec('COMMIT');}catch(e){store.db.exec('ROLLBACK');throw e;}
@@ -61,13 +61,16 @@ async function upsert(channel,key,body,files=[]){
 }
 try{
   const updates=await upsert(config.productionChannels.updates,'Guía de la comunidad',{
-    content:'**VEX LATAM SYSTEM · V1**\nTu perfil, tu squad y tu comunidad, conectados. Abajo tienes la guía visual y los archivos HTML/CSS para consultarla completa.',
+    content:'**VEX LATAM SYSTEM · V1**\nTu perfil, tu squad y tu comunidad, conectados. Consulta la guía visual y usa los botones para ir a cada apartado.',
     embeds:[
       {title:'01 · Tu próximo squad empieza aquí',color:0xec2340,description:`**Perfil:** <#${links.profile}> → crea tu ficha y guarda los cambios.\n**RS actual:** /perfil → Actualizar RS; el récord queda aparte.\n**Buscar:** <#${links.search}> → elige filtros, o escribe «busco equipo» en los chats de Ranked/Rápidas. Usa Unirme y los controles de voz de las tarjetas.\n**Comandos privados:** /ayuda · /perfil · /buscar · /leaderboard.`,image:{url:'attachment://v1-guia-1.png'}},
       {title:'02 · Clanes y torneos',color:0xec2340,description:`**VXTG:** <#${links.vxtg}> · **VXLTM:** <#${links.vxltm}>. Perfil y captura obligatorios; solo un clan. VXTG recomienda 20,000 RS actuales y admite solicitudes inferiores con advertencia.\n**Tablas manuales:** <#${links.rankVxtg}> y <#${links.rankVxltm}>.\n**Torneos:** <#${links.tournaments}> → abre sus inscripciones. Individual con un clic si tienes perfil; sin él, solo Embark ID. En equipo, selecciona a tus dos compañeros de Discord.`,image:{url:'attachment://v1-guia-2.png'}},
-      {title:'03 · Tu comunidad, con privacidad',color:0xec2340,description:`**Feedback:** <#${links.feedback}> → Enviar feedback. Anonimato opcional y tres envíos diarios por persona; se renuevan a las 00:00 CDMX.\n**Reportes:** <#${links.reports}> → busca al usuario y explica la situación. El equipo autorizado recibe la identidad para seguimiento; el reportado no recibe aviso.\n**Guía de comandos:** <#${links.commands}>. Consulta también el HTML y CSS adjuntos.`,image:{url:'attachment://v1-guia-3.png'}}],
+      {title:'03 · Tu comunidad, con privacidad',color:0xec2340,description:`**Feedback:** <#${links.feedback}> → Enviar feedback. Anonimato opcional y tres envíos diarios por persona; se renuevan a las 00:00 CDMX.\n**Reportes:** <#${links.reports}> → busca al usuario y explica la situación. El equipo autorizado recibe la identidad para seguimiento; el reportado no recibe aviso.\n**Guía de comandos:** <#${links.commands}>.`,image:{url:'attachment://v1-guia-3.png'}}],
     components:[{type:1,components:[['Crear perfil','profile'],['Buscar equipo','search'],['Torneos','tournaments'],['Sugerencias','feedback'],['Reportes','reports']].map(([label,key])=>({type:2,style:5,label,url:url(links[key])}))}]
-  },[...images,{name:'guia-v1.html',data:Buffer.from(html),contentType:'text/html'},{name:'guia.css',data:Buffer.from(css),contentType:'text/css'}]);
+  },images);
+  if(process.argv.includes('--guide-only')){
+    console.log(JSON.stringify({updates},null,2));
+  }else{
   const admin=await upsert(s.mailboxes.channels.adminCommands,'Administración',{
     embeds:[{title:'V1 · Administración de VEX LATAM SYSTEM',color:0xec2340,description:'Controles reservados por ID al propietario y a la cuenta autorizada. Los demás administradores de Discord pueden ver canales privados, pero los controles del bot rechazan sus acciones.',fields:[
       {name:'Torneos',value:'`/torneo crear` · `/torneo editar` · `/torneo revisar` · `/torneo cerrar convocatoria` · `/torneo terminar`.\n`/torneo-formar-equipo` · `/torneo-chat-de-voz-general` · `/torneo-chat-de-voz-equipos`.'},
@@ -79,4 +82,5 @@ try{
     embeds:[{title:'Solicitudes y rankings · VXTG / VXLTM',color:0xec2340,description:`**VXTG competitivo:** <#${links.vxtg}>\n**VXLTM comunidad:** <#${links.vxltm}>\n\nCompleta tu perfil en <#${links.profile}> y adjunta tu captura. Las solicitudes se revisan de forma privada. Solo puedes pertenecer a un clan.\n\n**Rankings:** <#${links.rankVxtg}> · <#${links.rankVxltm}>. Lista y RS cargados manualmente por los responsables.`}]
   });
   console.log(JSON.stringify({updates,admin,clans,html:path.join(root,'docs/v1/index.html')},null,2));
+  }
 }finally{store.close();}
