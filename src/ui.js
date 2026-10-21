@@ -6,6 +6,7 @@ import {
 import { skillLabels, classLabel } from './catalog.js';
 import { rolesPayload, rulesPayload, SQUAD_NAME } from './community-ui.js';
 import { sponsors, getSponsor, sponsorLabel } from './sponsors.js';
+import { currentRS, recordRS } from './profile-rs.js';
 
 export const safe = value => escapeMarkdown(String(value ?? ''));
 export const privateFlags = MessageFlags.Ephemeral;
@@ -25,10 +26,10 @@ export function card(title, body, rows = [], extra = '') {
 export function panelPayload(type, settings) {
   if (type === 'registro') return card('🎮 Tu perfil · THE FINALS',
     '**01 · Embark ID, RS y patrocinador → 02 · Clase y especializaciones → 03 · Guardar**\n'
-    + 'El rango se calcula automáticamente. El asistente y tu ficha son privados.\n'
+    + 'El rango usa tu **RS actual**; tu récord se conserva por separado. Para cambiar solo tus puntos usa **Actualizar RS**: se guarda al enviar. El asistente completo requiere pulsar Guardar perfil.\n'
     + 'El perfil es opcional para acceder al servidor y crear equipos HOT. Regístralo para mostrar tus datos y usar búsquedas con filtros.\n'
     + 'La foto es opcional. Tu tarjeta, Embark ID y RS podrán aparecer en equipos y en el **top 10 de la comunidad**. Al guardar recibes **Verificado**, **THE FINALS** y el rol de tu patrocinador, y aceptas aparecer en sugerencias.', [
-      row(button('profile:edit', 'Completar / editar perfil', ButtonStyle.Primary), button('profile:view', 'Ver mi perfil')),
+      row(button('profile:edit', 'Completar / editar perfil', ButtonStyle.Primary), button('profile:view', 'Ver mi perfil'), button('profile:rs','Actualizar RS')),
       row(button('private:clear', 'Limpiar mis mensajes')),
     ], 'La consulta de clasificación envía tu Embark ID a [FINALSTRACKER](https://finalstracker.net), un servicio comunitario no oficial. No consulta habilidades ni verifica que la cuenta te pertenezca.');
   if (type === 'buscar') return card(`🏆 ${SQUAD_NAME} · THE FINALS`,
@@ -54,7 +55,7 @@ export function textLabel(id, label, value = '', required = true, max = 100, pla
 export function profileModal(profile, customId = 'profile:save') {
   return new ModalBuilder().setCustomId(customId).setTitle('01 · Identidad y patrocinador').addLabelComponents(
     textLabel('embarkId', 'Embark ID', profile?.embarkId, true, 70, 'Jugador#1234'),
-    textLabel('score', 'Puntos RS · Obligatorio', profile?.score, true, 6, 'Ejemplo: 25000'),
+    textLabel('score', 'RS actual · Obligatorio', profile?.score, true, 6, 'Ejemplo: 18000').setDescription('Usa tus puntos actuales, aunque bajen. Al guardar se conserva también tu récord.'),
     new LabelBuilder().setLabel('Patrocinador · Obligatorio').setDescription('Elige el diseño de tu ficha y tu rol. Puedes cambiarlo al editar el perfil.')
       .setStringSelectMenuComponent(new StringSelectMenuBuilder().setCustomId('sponsor').setRequired(true)
         .setMinValues(1).setMaxValues(1).setPlaceholder('Elige tu patrocinador')
@@ -87,7 +88,8 @@ export function profileEmbed(profile, includeIdentity = true) {
       { name: 'Patrocinador', value: sponsorLabel(profile.sponsorId), inline: true },
       { name: 'Especializaciones', value: skillLabels(profile.specializationIds).map(safe).join('\n') || 'Completa tu selección', inline: true },
       { name: 'Rango', value: safe(profile.rank), inline: true },
-      { name: 'Puntos RS', value: profile.score == null ? 'Sin registrar' : String(profile.score), inline: true },
+      { name: 'RS actual', value: currentRS(profile)==null?'Sin registrar':currentRS(profile).toLocaleString('es-MX'), inline: true },
+      { name: 'Récord de RS', value: recordRS(profile)==null?'Sin registrar':recordRS(profile).toLocaleString('es-MX'), inline: true },
       { name: 'Búsquedas', value: profile.searchable ? 'Activo' : 'Pausado', inline: true },
       { name: 'Origen de rango y RS', value: source },
     );

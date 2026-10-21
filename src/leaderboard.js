@@ -4,6 +4,7 @@ import { config } from './config.js';
 import { rankFromRS, UserError } from './domain.js';
 import { card, row, button, safe, withImage, deliverCard } from './ui.js';
 import { lockControlChannel } from './setup.js';
+import { pinIfAllowed } from './pins.js';
 
 export function topPlayers(profiles) {
   return profiles.filter(p => Number.isInteger(p.score) && p.score >= 0 && p.score <= 999999 && typeof p.embarkId === 'string')
@@ -17,7 +18,7 @@ export function leaderboardPayload(players) {
   const lines = players.map((p, n) => `${n === 0 ? '🥇' : n === 1 ? '🥈' : n === 2 ? '🥉' : `**${n + 1}.**`} **${safe(p.embarkId)}** · ${p.score.toLocaleString('es-MX')} RS · ${safe(p.rank)}`);
   return card('🏆 Top 10 · RS de la comunidad', lines.join('\n') || 'Todavía no hay jugadores con RS registrados.', [
     row(button('profile:edit', 'Editar mi perfil'), button('leaderboard:view', 'Ver top 10')),
-  ], 'Se usan los RS guardados en cada perfil, declarados o consultados por el jugador. No es la clasificación oficial. Los empates se ordenan por Embark ID. Pausar las búsquedas conserva tu puesto; eliminar el perfil lo retira.');
+  ], 'Se usa el RS actual guardado en cada perfil, declarado o consultado por el jugador. El récord no determina este top. No es la clasificación oficial. Los empates se ordenan por Embark ID. Pausar las búsquedas conserva tu puesto; eliminar el perfil lo retira.');
 }
 export class Leaderboard {
   constructor(bot) { this.bot = bot; this.pending = new Set(); }
@@ -70,7 +71,7 @@ export class Leaderboard {
       const latest = this.bot.store.settings(guild.id);
       latest.leaderboard = { channel: target.id, message: message.id, hash };
       this.bot.store.saveSettings(guild.id, latest);
-      if (!message.pinned) await message.pin('Top 10 de la comunidad');
+      await pinIfAllowed(message,'Top 10 de la comunidad');
       this.pending.delete(guild.id);
       return message;
     });

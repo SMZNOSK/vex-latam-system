@@ -19,6 +19,8 @@ try {
     ['tournament', t, [320, 390, 720], 'tournament'],
     ['tournament-team', { name: 'The Live Wires', tournamentName: t.name, source: 'balanced', people }, [320, 390, 720], 'tournament-team'],
     ['tournament-poster', t, [1100], 'poster-open'],
+    ['tournament', { ...t, registrationMode: 'solo' }, [320, 390, 720], 'tournament-solo'],
+    ['tournament-poster', { ...t, registrationMode: 'solo' }, [1100], 'poster-solo'],
     ['tournament-poster', { ...t, status: 'closed' }, [1100], 'poster-closed'],
     ['tournament-poster', { ...t, status: 'finished', deleteAt: t.startsAt + TOURNAMENT_RETENTION_MS }, [1100], 'poster-finished'],
     ['tournament-poster', { ...t, status: 'finished', channelsDeletedAt: t.startsAt + TOURNAMENT_RETENTION_MS }, [1100], 'poster-deleted'],

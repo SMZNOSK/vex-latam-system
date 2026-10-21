@@ -3,20 +3,25 @@ import { UserError } from './domain.js';
 import { assertAssignable } from './roles.js';
 import { card, deliverCard } from './ui.js';
 import { reconcileIdentityRoles } from './access-gate.js';
+import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 
 export async function ensureFinalsRole(bot, guild) {
   return bot.queue(`role-setup:${guild.id}`, async () => {
     const settings = bot.store.settings(guild.id), me = await guild.members.fetchMe();
     await guild.roles.fetch();
-    let role = settings.finalsRole ? guild.roles.cache.get(settings.finalsRole) : null;
-    if (!role) role = guild.roles.cache.find(r => r.name === 'THE FINALS' && !r.managed && r.permissions.bitfield === 0n);
+    let role = boundRole(guild, 'finals') ?? (settings.finalsRole ? guild.roles.cache.get(settings.finalsRole) : null);
     if (!role) {
+      const matches = guild.roles.cache.filter(r => r.name === 'THE FINALS' && !r.managed);
+      if (matches.size > 1) throw new UserError('Hay varios roles THE FINALS. Vincula el correcto por ID.');
+      role = matches.first();
+    }
+    if (!role) {
+      assertPermanentRoleCreation(guild, 'THE FINALS');
       role = await guild.roles.create({ name: 'THE FINALS', permissions: [], mentionable: true, colors: { primaryColor: 0xed243b }, reason: 'Jugadores registrados en VEX LATAM SYSTEM' });
       await guild.roles.fetch();
     }
     assertAssignable(role, me);
     if (role.permissions.bitfield !== 0n) throw new UserError('THE FINALS debe ser un rol sin permisos. Retira sus permisos o configura un rol seguro.');
-    if (!role.mentionable) role = await role.setMentionable(true, 'Avisos de equipos con frecuencia limitada');
     const latest = bot.store.settings(guild.id);
     latest.finalsRole = role.id;
     bot.store.saveSettings(guild.id, latest);
@@ -35,7 +40,7 @@ export async function processRoleJobs(bot, guild) {
       const updatedAt = bot.store.profile(guild.id, job.user)?.updatedAt;
       const desired = Boolean(bot.store.profile(guild.id, job.user)) || bot.store.reactionChoice(guild.id, job.user, role.id);
       if (desired && !member.roles.cache.has(role.id)) await member.roles.add(role.id, 'Perfil THE FINALS guardado');
-      if (!desired && member.roles.cache.has(role.id)) await member.roles.remove(role.id, 'Perfil THE FINALS eliminado');
+      if (!desired && member.roles.cache.has(role.id) && !bot.store.settings(guild.id).integration?.preserveExternalGrants) await member.roles.remove(role.id, 'Perfil THE FINALS eliminado');
       await reconcileIdentityRoles(bot, guild, member);
       if (bot.store.profile(guild.id, job.user)?.updatedAt === updatedAt
         && (Boolean(bot.store.profile(guild.id, job.user)) || bot.store.reactionChoice(guild.id, job.user, role.id)) === desired) bot.store.finishRole(guild.id, job.user);
@@ -81,7 +86,7 @@ export async function lockControlChannel(guild, channel) {
   await channel.permissionOverwrites.edit(guild.id, { SendMessages: false, SendMessagesInThreads: false,
     CreatePublicThreads: false, CreatePrivateThreads: false, AddReactions: false }, { reason: 'Solo controles del bot; administradores conservan acceso' });
   await channel.permissionOverwrites.edit(me.id, { ViewChannel: true, SendMessages: true, EmbedLinks: true,
-    AttachFiles: true, ReadMessageHistory: true, PinMessages: true }, { reason: 'Publicar y fijar controles VEX LATAM SYSTEM' });
+    AttachFiles: true, ReadMessageHistory: true, PinMessages:me.permissions?.has(P.PinMessages)?true:null }, { reason: 'Publicar y fijar controles VEX LATAM SYSTEM' });
 }
 export async function relocateSearches(bot, guild, channel) {
   for (const item of bot.store.searches(guild.id)) {

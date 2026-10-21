@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "tool": "image_gen.imagegen (integrada)",
+  "style": "Minimalista geométrico mate; sin luces ni degradados decorativos",
+  "format": "WebP sin pérdida",
+  "referenceImage": "exec-c5e6f8fd-d639-4377-9c0b-9980bf521d54.png",
+  "assets": [
+    {
+      "id": "ospuze",
+      "file": "ospuze-v2.webp",
+      "sourceFile": "exec-3663a149-7dac-453d-a8e6-b4e8cb33d2ce.png",
+      "prompt": "Use case: stylized-concept. Create ONE portrait 2:3 flat minimalist geometric background for a branded THE FINALS community player card. Only the decorative backdrop, NOT a UI mockup. Strict MATTE, vector-poster look, sharp simple edges and completely SOLID UNIFORM colors. Absolutely NO lighting, glow, bloom, gradients, shadows, reflections, textures, shading, bevels, 3D, realistic objects, scenes, sci-fi, circuitry, text, numbers, words or logos. Consistent medium-fine 4–6px outlined strokes at a 1024px image width, combined with a few solid filled shapes. Main background is uniform near-black charcoal #0c1016. Reserve the central 55–60 percent as quiet charcoal for later card information. Decorative elements concentrated in asymmetrical edge groups but with enough visible graphic presence, not just two sparse lines. Keep to two or three recurring geometric elements, organized with intentional spacing and rhythm. Crop some shapes naturally at the edges; do not draw a complete enclosing frame. Every colored region must be a flat color with no luminance variation. OSPUZE energy-drink graphic identity. Accent solid golden yellow #f8bc2c only. Distinctive composition built from open C-shaped circular arcs, a few solid round disks and restrained clusters of small round dots suggesting effervescence. A large cropped partial yellow ring sits along the lower-right; a shorter contrasting arc plus about 10 neatly spaced dots occupy upper-left. Some medium-fine curved strokes and two short pill-shaped bars provide energy. Circular rhythm, bubbly but sophisticated; no diagonal chevrons, no hexagons."
+    },
+    {
+      "id": "iseul-t",
+      "file": "iseul-t-v2.webp",
+      "sourceFile": "exec-8748e40f-5cd9-42c5-8bcc-739cf90794a0.png",
+      "prompt": "Use case: stylized-concept. Create ONE portrait 2:3 flat minimalist geometric background for a branded THE FINALS community player card. Only the decorative backdrop, NOT a UI mockup. Strict MATTE, vector-poster look, sharp simple edges and completely SOLID UNIFORM colors. Absolutely NO lighting, glow, bloom, gradients, shadows, reflections, textures, shading, bevels, 3D, realistic objects, scenes, sci-fi, circuitry, text, numbers, words or logos. Consistent medium-fine 4–6px outlined strokes at a 1024px image width, combined with a few solid filled shapes. Main background is uniform near-black charcoal #0c1016. Reserve the central 55–60 percent as quiet charcoal for later card information. Decorative elements concentrated in asymmetrical edge groups but with enough visible graphic presence, not just two sparse lines. Keep to two or three recurring geometric elements, organized with intentional spacing and rhythm. Crop some shapes naturally at the edges; do not draw a complete enclosing frame. Every colored region must be a flat color with no luminance variation. ISEUL-T high-fashion graphic identity. Use solid electric cobalt #0094df and a very small amount of solid magenta #e53e9d. Thin parallel diagonal seam-like strokes, cropped elongated rhombuses and a few solid parallelogram panels form an editorial asymmetric composition along upper-left and lower-right. One small group of 4 magenta squares introduces a restrained opposing accent. Precise tailoring and pleating translated into flat graphic geometry. Fashion magazine back-cover design, not a repeating striped wallpaper; no circles or hexagons."
+    },
+    {
+      "id": "volpe",
+      "file": "volpe-v2.webp",
+      "sourceFile": "exec-8c9accf9-166a-4d43-864a-b0933b56d7a0.png",
+      "prompt": "Use case: stylized-concept. Create ONE portrait 2:3 flat minimalist geometric background for a branded THE FINALS community player card. Only the decorative backdrop, NOT a UI mockup. Strict MATTE, vector-poster look, sharp simple edges and completely SOLID UNIFORM colors. Absolutely NO lighting, glow, bloom, gradients, shadows, reflections, textures, shading, bevels, 3D, realistic objects, scenes, sci-fi, circuitry, text, numbers, words or logos. Consistent medium-fine 4–6px outlined strokes at a 1024px image width, combined with a few solid filled shapes. Main background is uniform near-black charcoal #0c1016. Reserve the central 55–60 percent as quiet charcoal for later card information. Decorative elements concentrated in asymmetrical edge groups but with enough visible graphic presence, not just two sparse lines. Keep to two or three recurring geometric elements, organized with intentional spacing and rhythm. Crop some shapes naturally at the edges; do not draw a complete enclosing frame. Every colored region must be a flat color with no luminance variation. VOLPE virtual-technology graphic identity. Accent solid crimson #d90526 only. Distinctive composition of large open angular triangles, small filled triangular wedges and a few medium-fine offset diagonal cuts. Anchor a cropped triangular negative-space shape at the upper-right, balanced by 3 interlocking angular fragments at lower-left. A few tiny red square marks, lots of dark open space, meticulous minimalist technical-brand poster. No rings, no hexagons, no glow or electronic circuit patterns."
+    },
+    {
+      "id": "holtow",
+      "file": "holtow-v2.webp",
+      "sourceFile": "exec-0b9b1762-9fa5-43a4-8575-1f3e70a399b7.png",
+      "prompt": "Generate one abstract graphic IMAGE only. Portrait canvas 1024 wide by 1536 high. Uniform dark charcoal #0c1016 covering at least 85% of the entire image. Flat matte vector-like shapes with uniform solid colors and fine 4px outline strokes. Central 60% empty charcoal. Put all decoration in cropped asymmetrical corner groups. Absolutely no text, typography, letters, logos, labels, words, white background, texture, lighting, glow, gradient, shadows, shading, 3D, photographic objects, poster layout or mockup. This is a sparse abstract background, NOT an advertisement. Orange #f36b00 geometric L brackets, overlapping open rectangles, small square grids. Large cropped right angle at upper left, three staggered outlined Ls lower right, five small solid orange squares beside them. Only orthogonal geometric construction."
+    },
+    {
+      "id": "vaiiya",
+      "file": "vaiiya-v2.webp",
+      "sourceFile": "exec-b54eb2ef-c245-4c5c-a7a0-5d26eec11bfd.png",
+      "prompt": "Generate one abstract graphic IMAGE only. Portrait canvas 1024 wide by 1536 high. Uniform dark charcoal #0c1016 covering at least 85% of the entire image. Flat matte vector-like shapes with uniform solid colors and fine 4px outline strokes. Central 60% empty charcoal. Put all decoration in cropped asymmetrical corner groups. Absolutely no text, typography, letters, logos, labels, words, white background, texture, lighting, glow, gradient, shadows, shading, 3D, photographic objects, poster layout or mockup. This is a sparse abstract background, NOT an advertisement. Ivory #e8ebef fine vertical rails and horizontal rules at opposing edges, one narrow cropped rectangular square-grid strip upper right, tiny red #ed0f35 square corner marks. Precise, spacious, ordered minimalist geometry."
+    },
+    {
+      "id": "engimo",
+      "file": "engimo-v2.webp",
+      "sourceFile": "exec-9a8f89de-78fb-4a06-955b-6c9e260095d9.png",
+      "prompt": "Generate one abstract graphic IMAGE only. Portrait canvas 1024 wide by 1536 high. Uniform dark charcoal #0c1016 covering at least 85% of the entire image. Flat matte vector-like shapes with uniform solid colors and fine 4px outline strokes. Central 60% empty charcoal. Put all decoration in cropped asymmetrical corner groups. Absolutely no text, typography, letters, logos, labels, words, white background, texture, lighting, glow, gradient, shadows, shading, 3D, photographic objects, poster layout or mockup. This is a sparse abstract background, NOT an advertisement. Teal #4d8e96 interrupted concentric arcs and six pale teal #91c3c7 round dots, joined by two thin curved lines. Large cropped circular arcs upper left, two open rings lower right. Central charcoal completely blank."
+    },
+    {
+      "id": "dissun",
+      "file": "dissun-v2.webp",
+      "sourceFile": "exec-0c6647e6-7063-4542-8098-769ebba73908.png",
+      "prompt": "Create a variation of the attached REFERENCE IMAGE. Keep its exact portrait 2:3 format, flat MATTE graphic aesthetic, dark charcoal background #0c1016 and large empty dark central area. Keep all decorative shapes in small groups cropped at the outer edges. The center must be completely blank DARK CHARCOAL. Do not add typography, light, shadows, glow, gradients or texture. Only change the geometric vocabulary and accent color as specified. Replace ALL blue geometry with RED #d21f3c geometric elements: a cropped semicircular segment with six short radial rectangles at bottom left, two horizontal stripes at top right and two thin open arcs. No diagonals, no hexagons."
+    },
+    {
+      "id": "alfa-acta",
+      "file": "alfa-acta-v2.webp",
+      "sourceFile": "exec-42aa6c17-28bf-40c8-8d41-88a1fd3bde99.png",
+      "prompt": "Create a variation of the attached REFERENCE IMAGE. Keep its exact portrait 2:3 format, flat MATTE graphic aesthetic, dark charcoal background #0c1016 and large empty dark central area. Keep all decorative shapes in small groups cropped at the outer edges. The center must be completely blank DARK CHARCOAL. Do not add typography, light, shadows, glow, gradients or texture. Only change the geometric vocabulary and accent color as specified. Replace ALL blue geometry with RED #e70f3d shapes: one thin open hexagon at top right, three staggered chevrons bottom left, two small filled polygon blocks cropped on edges and four tiny squares. Keep them on edges, not in middle."
+    },
+    {
+      "id": "ivada",
+      "file": "ivada-v2.webp",
+      "sourceFile": "exec-fd902ff6-d6d9-440f-abe3-42ef0f766888.png",
+      "prompt": "Create a variation of the attached REFERENCE IMAGE. Keep its exact portrait 2:3 format, flat MATTE graphic aesthetic, dark charcoal background #0c1016 and large empty dark central area. Keep all decorative shapes in small groups cropped at the outer edges. The center must be completely blank DARK CHARCOAL. Do not add typography, light, shadows, glow, gradients or texture. Only change the geometric vocabulary and accent color as specified. Replace ALL blue geometry with IVORY #f1f2f4 shapes: thin quarter circles at top left, two cropped corner square outlines and a small narrow vertical square-grid patch bottom right. Use minimal amounts of white, under 15 percent of canvas. Never fill broad regions with white."
+    },
+    {
+      "id": "trentila",
+      "file": "trentila-v2.webp",
+      "sourceFile": "exec-700b9427-c96d-4a26-a07e-7a855865b3ad.png",
+      "prompt": "Create a variation of the attached REFERENCE IMAGE. Keep its exact portrait 2:3 format, flat MATTE graphic aesthetic, dark charcoal background #0c1016 and large empty dark central area. Keep all decorative shapes in small groups cropped at the outer edges. The center must be completely blank DARK CHARCOAL. Do not add typography, light, shadows, glow, gradients or texture. Only change the geometric vocabulary and accent color as specified. Replace ALL blue geometry with LIME GREEN #a7d825 shapes: four small lens shapes resembling geometric leaves alternating outlines and filled shapes at bottom left, three small circles and two tiny dot clusters at top right. No diagonal stripes or hexagons."
+    },
+    {
+      "id": "cometa",
+      "file": "cometa-v2.webp",
+      "sourceFile": "exec-ce2e48db-535e-4449-93b8-34b93e1f729f.png",
+      "prompt": "Create a variation of the attached REFERENCE IMAGE. Keep its exact portrait 2:3 format, flat MATTE graphic aesthetic, dark charcoal background #0c1016 and large empty dark central area. Keep all decorative shapes in small groups cropped at the outer edges. The center must be completely blank DARK CHARCOAL. Do not add typography, light, shadows, glow, gradients or texture. Only change the geometric vocabulary and accent color as specified. Replace ALL blue geometry with ORANGE #ff8a00 shapes: two thin open ellipses at top right, one solid disk and five short parallel trail bars cropped at bottom left, and four tiny squares. No diagonal stripe blocks, no hexagons."
+    },
+    {
+      "id": "cns",
+      "file": "cns-v2.webp",
+      "sourceFile": "exec-c5e6f8fd-d639-4377-9c0b-9980bf521d54.png",
+      "prompt": "Use case: stylized-concept. Edit the provided portrait 2:3 CNS geometric background. Edit target: the blue angular geometric composition on charcoal. Keep the overall layout, cropped open hexagon fragments, diagonal bars, chevrons, and large calm dark center, but make it rigorously FLAT AND MATTE. Remove ALL lighting effects: absolutely no glow, bloom, halo, bright cores, light spill, reflections, highlights, gradients, shadows, texture, shading, bevels, or 3D. Use ONLY uniform solid flat fills: background charcoal #0c1016 and accent blue #009dff. All visible blue geometry must be exactly the same single solid blue, with crisp edges, no lighter cyan or darker blue areas. Make the outlined strokes moderately thinner than in the reference, about 4–6 px at a 1024 px image width; reduce the widths of the solid diagonal bars by about 30 percent. Retain a deliberate mix of thin outlined geometric fragments and a few flat filled parallelograms at the outer edges, with most geometry in the upper-right and lower-left and a little at the sides. Strong but restrained premium minimalist vector-poster appearance. Central 55 percent remains empty charcoal, so card data can be added later. No text, logo, numbers, UI, enclosing border, objects, architecture or sci-fi elements. One complete full-bleed flat matte background only, not a mockup or contact sheet."
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 import { ChannelType, PermissionFlagsBits as P } from 'discord.js';
 import { createHash } from 'node:crypto';
 import { config, contentIntent } from './config.js';
+import { requireOperator } from './admin-access.js';
+import { prepareProduction } from './production.js';
+import { pinIfAllowed } from './pins.js';
 import { commands } from './commands.js';
 import { UserError, compatible, blockedTerm } from './domain.js';
 import { assertAssignable } from './roles.js';
@@ -19,6 +22,12 @@ import { skillLabels } from './catalog.js';
 import { AccessGate } from './access-gate.js';
 import { ChatSearch } from './chat-search.js';
 import { Tournaments, tournamentCommands, requireTournamentAdmin } from './tournaments.js';
+import { Mailboxes, isAdministrativeCommand } from './mailboxes.js';
+import { MemberCards } from './member-cards.js';
+import { WordLists, parseModerationTerms } from './word-lists.js';
+import { MemberGuide } from './member-guide.js';
+import { InlineEmojis, resolveEmbedEmojis } from './inline-emojis.js';
+import { Clans, clanCommands } from './clans.js';
 import { ensureFinalsRole, processRoleJobs, ensureTeamsChannel, lockControlChannel, relocateSearches } from './setup.js';
 
 export class VexBot {
@@ -40,10 +49,16 @@ export class VexBot {
     this.accessGate = new AccessGate(this);
     this.chatSearch = new ChatSearch(this);
     this.tournaments = new Tournaments(this);
+    this.mailboxes = new Mailboxes(this);
+    this.wordLists = new WordLists(this);
+    this.memberGuide = new MemberGuide(this);
+    this.inlineEmojis = new InlineEmojis(this);
+    this.clans = new Clans(this);
+    this.memberCards = renderer ? new MemberCards(renderer) : null;
     this.membersIntent = false;
   }
   admin(i) {
-    if (!i.memberPermissions?.has(P.ManageGuild)) throw new UserError('Necesitas Administrar servidor para usar esta función.');
+    requireOperator(i);
   }
   queue(key, task) {
     const next = (this.queues.get(key) ?? Promise.resolve()).catch(() => {}).then(task);
@@ -67,6 +82,8 @@ export class VexBot {
     await guild.commands.set(commands);
     console.log(`VEX LATAM SYSTEM conectado en ${guild.name}. Comandos registrados.`);
     await guild.channels.fetch();
+    await prepareProduction(this, guild);
+    await this.mailboxes.setup(guild).catch(e => this.log(e, 'Preparar panel administrativo y buzones; se reintentará'));
     await this.tournaments.setup(guild).catch(e => this.log(e, 'Preparar torneos; se reintentará'));
     await ensureFinalsRole(this, guild).catch(e => { this.setupPending.add(guild.id); this.log(e, 'Preparar rol THE FINALS'); });
     for (const p of this.store.profiles(guild.id)) this.store.queueRole(guild.id, p.user);
@@ -100,6 +117,8 @@ export class VexBot {
     if (teams) await relocateSearches(this, guild, teams).catch(e => { this.setupPending.add(guild.id); this.log(e, 'Trasladar solicitudes'); });
     await this.chatSearch.setup(guild).catch(e => this.log(e, 'Preparar búsqueda por chat; se reintentará'));
     await this.community.setup(guild).catch(e => this.log(e, 'Preparar bienvenida, reglas y reacciones; se reintentará'));
+    await this.clans.setup(guild).catch(e => this.log(e, 'Preparar clanes y formularios; se reintentará'));
+    await this.memberGuide.setup(guild).catch(e => this.log(e, 'Publicar guía de comandos para miembros; se reintentará'));
     await this.community.reactions.reconcile(guild).catch(e => this.log(e, 'Recuperar reacciones de roles'));
     // Una publicación interrumpida antes de obtener un mensaje no debe bloquear al organizador.
     for (const s of this.store.searches(guild.id)) {
@@ -161,8 +180,7 @@ export class VexBot {
       this.store.saveSettings(guild.id, latest);
       if (['registro', 'buscar'].includes(type)) {
         await lockControlChannel(guild, channel);
-        if (!channel.permissionsFor(await guild.members.fetchMe())?.has(P.PinMessages)) throw new UserError(`Falta Fijar mensajes en #${channel.name}.`);
-        if (!message.pinned) await message.pin('Panel principal VEX LATAM SYSTEM');
+        await pinIfAllowed(message,'Panel principal VEX LATAM SYSTEM');
       }
       if (previous && previous.channel !== channel.id) {
         try {
@@ -248,7 +266,14 @@ export class VexBot {
   async interaction(i) {
     if (!i.inGuild() || !this.guilds.has(i.guildId)) return;
     try {
-      if (i.isAutocomplete?.() && tournamentCommands.includes(i.commandName)) return await this.tournaments.autocomplete(i);
+      if (i.isAutocomplete?.() && tournamentCommands.includes(i.commandName)) {
+        try { this.mailboxes.assertAdminCommand(i); } catch { return await i.respond([]); }
+        return await this.tournaments.autocomplete(i);
+      }
+      if (i.customId?.startsWith('mailbox:')) return await this.mailboxes.handle(i);
+      if (i.customId?.startsWith('words:')) return await this.wordLists.handle(i);
+      if (i.customId?.startsWith('emoji:')) return await this.inlineEmojis.handle(i);
+      if (i.customId?.startsWith('clan:')) return await this.clans.handle(i);
       if (i.customId?.startsWith('tour:')) return await this.tournaments.handle(i);
       if (i.customId === 'leaderboard:view') return await this.leaderboard.view(i);
       if (i.customId === 'private:close') {
@@ -282,14 +307,21 @@ export class VexBot {
   }
   async command(i) {
     const name = i.commandName;
+    if (isAdministrativeCommand(name)) {
+      if (tournamentCommands.includes(name) || name === 'anuncio') requireTournamentAdmin(i);
+      else this.admin(i);
+      this.mailboxes.assertAdminCommand(i);
+    }
     if (tournamentCommands.includes(name)) return this.tournaments.command(i);
+    if (clanCommands.includes(name)) return this.clans.command(i);
     if (name === 'anuncio') requireTournamentAdmin(i);
     if (name === 'ping') return this.sendPrivate(i, `VEX LATAM SYSTEM está conectado. Latencia: ${this.client.ws.ping} ms.`);
     if (name === 'ayuda') return this.sendPrivate(i,
       '**Jugadores:** usa las tarjetas de registro-de-datos, buscar-equipo y leaderboard. También puedes usar /perfil, /buscar y /leaderboard.\n'
+      + '**Buzones:** usa los botones de #feedback y #reportes. Solo los administradores reciben los envíos; el feedback admite anonimato opcional.\n'
       + '**VLS Find Squad:** perfiles, búsquedas, leaderboard y salas de voz temporales.\n'
-      + '**Administración:** /panel, /roles, /embed, /bienvenida, /avisos, /anuncio, /reglas, /moderacion y /busqueda-chat.\n'
-      + '**Torneos:** inscríbete desde el panel del torneo. Solo Administradores: /torneo crear, /torneo revisar, /torneo cerrar convocatoria, /torneo terminar, /torneo-formar-equipo, /torneo-chat-de-voz-general y /torneo-chat-de-voz-equipos. Cerrar convocatoria bloquea inscripciones; terminar inicia 7 días para eliminar los canales del torneo.\n'
+      + '**Administración:** usa #admin-bot para /panel, /roles, /embed, /bienvenida, /despedida, /avisos, /anuncio, /reglas, /moderacion y /busqueda-chat.\n'
+      + '**Torneos:** inscríbete desde el panel del torneo. Solo Administradores: /torneo crear, /torneo editar, /torneo revisar, /torneo cerrar convocatoria, /torneo terminar, /torneo-formar-equipo, /torneo-chat-de-voz-general y /torneo-chat-de-voz-equipos. Cerrar convocatoria bloquea inscripciones; terminar inicia 7 días para eliminar los canales del torneo.\n'
       + 'Los perfiles se guardan por servidor. El registro y la consulta de tu perfil son privados. Tu tarjeta, Embark ID y RS pueden aparecer en solicitudes públicas y en el top 10 de esta comunidad.');
     if (name === 'perfil') return this.store.profile(i.guildId, i.user.id) ? this.workflows.profile(i) : this.workflows.startProfile(i);
     if (name === 'buscar') {
@@ -300,6 +332,9 @@ export class VexBot {
     if (await this.community.command(i)) return;
     if (name === 'anuncio') {
       return i.showModal(publishModal(name, i.options.getChannel('canal').id));
+    }
+    if (['busqueda-chat', 'moderacion'].includes(name) && i.options.getSubcommand() === 'palabras') {
+      return this.wordLists.open(i, name === 'busqueda-chat' ? 'chat' : 'moderation');
     }
     await i.deferReply({ flags: privateFlags });
     if (name === 'panel') {
@@ -329,8 +364,8 @@ export class VexBot {
       if (!member.permissions.has(P.Administrator) && role.position >= member.roles.highest.position) throw new UserError('Elige un rol por debajo de tu rol más alto.');
     }
     const settings = this.store.settings(i.guildId);
-    if (sub === 'agregar' && [settings.verifiedRole, ...Object.values(settings.sponsorRoles ?? {})].includes(role.id)) {
-      throw new UserError('Verificado y los patrocinadores se asignan al guardar el perfil; no se pueden añadir al panel de reacciones.');
+    if (sub === 'agregar' && [settings.verifiedRole, ...Object.values(settings.sponsorRoles ?? {}),settings.clans?.vxtg?.role,settings.clans?.vxltm?.role].includes(role.id)) {
+      throw new UserError('Verificado y los patrocinadores se asignan con el perfil. Los clanes requieren aprobación. Estos roles no se añaden al panel de reacciones.');
     }
     if (parsed && settings.roles.some(r => r.id !== role.id && r.emojiKey === parsed.emojiKey)) throw new UserError('Ese emoji ya está vinculado a otro rol. Elige otro o retira el vínculo anterior.');
     const before = settings.roles.find(r => r.id === role.id);
@@ -357,8 +392,7 @@ export class VexBot {
     if (sub === 'desactivar') moderation.enabled = false;
     if (sub === 'palabras') {
       const input = i.options.getString('lista');
-      moderation.terms = input === '-' ? [] : [...new Set(input.split(',').map(x => x.trim()).filter(Boolean))];
-      if (moderation.terms.length > 100 || moderation.terms.some(x => x.length > 80)) throw new UserError('Usa como máximo 100 palabras o frases de hasta 80 caracteres.');
+      moderation.terms = parseModerationTerms(input);
       if (!moderation.terms.length) moderation.enabled = false;
     }
     this.store.saveSettings(i.guildId, settings);
@@ -455,6 +489,7 @@ export class VexBot {
   }
   async syncProfile(i) {
     if (!config.trackerEnabled) throw new UserError('La consulta de clasificación está desactivada en este servidor.');
+    this.workflows.assertProfileSaved(i.guildId,i.user.id);
     const before = this.requireProfile(i);
     await this.ackCard(i);
     const standing = await this.tracker.lookup(before.embarkId);
@@ -475,7 +510,7 @@ export class VexBot {
       const channel = await this.channel(i.guild, channelId);
       const title = i.fields.getTextInputValue('title');
       const body = i.fields.getTextInputValue('body');
-      const message = await channel.send(nativePayload({ title: `📣 ${title}`, description: body, color: '#ed243b' }));
+      const message = await channel.send(nativePayload(await resolveEmbedEmojis({ title: `📣 ${title}`, description: body, color: '#ed243b' }, i.guild)));
       return this.sendPrivate(i, `Publicado: ${message.url}`);
     }
   }
@@ -570,6 +605,9 @@ export class VexBot {
         }).catch(e => this.log(e, 'Búsqueda por chat pendiente'));
       }
       await this.community.tick(guild).catch(e => this.log(e, 'Módulo de comunidad; se reintentará'));
+      await this.memberGuide.tick(guild).catch(e => this.log(e, 'Guía de comandos pendiente; se reintentará'));
+      await this.mailboxes.tick(guild).catch(e => this.log(e, 'Buzones pendientes; se reintentará'));
+      await this.clans.tick(guild).catch(e => this.log(e, 'Clanes pendientes; se reintentará'));
       await this.tournaments.tick(guild).catch(e => this.log(e, 'Módulo de torneos; se reintentará'));
       if (this.accessGate.pending.has(id)) await this.accessGate.setup(guild).catch(e => this.log(e, 'Acceso libre o roles de perfil pendientes'));
       await this.leaderboard.refresh(guild, { setup: this.leaderboard.pending.has(id) }).catch(error => {

@@ -20,5 +20,5 @@ function image(relative, mime = 'image/png') {
   return cache.get(relative);
 }
 export const rankIcon = rank => { const filename = rankAssetName(rank); return filename ? image(filename) : null; };
-export const finalsLogo = () => image('logos/the finals/id_8W77H5q_logos.png');
+export const finalsLogo = (tone='white') => image(`logos/the finals/${tone==='red'?'thefinals.svg':'thefinals-dark.svg'}`, 'image/svg+xml');
 export const vexLogo = () => image('logos/VEX LATAM/WhatsApp Image 2026-10-13 at 3.49.43 PM.jpeg', 'image/jpeg');

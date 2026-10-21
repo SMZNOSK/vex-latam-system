@@ -50,6 +50,10 @@ client.on(Events.GuildMemberAdd, member => {
 client.on(Events.GuildMemberUpdate, (before, member) => {
   if (bot.guilds.has(member.guild.id) && !member.user.bot) store.queueRole(member.guild.id, member.id);
 });
+client.on(Events.GuildMemberRemove, member => {
+  bot.community.farewell(member).catch(error => bot.log(error, 'Despedida automática'));
+  bot.clans.left(member).catch(error => bot.log(error,'Actualizar membresía de clan al salir del servidor'));
+});
 client.on(Events.MessageReactionAdd, (reaction, user) => bot.community.reactions.handle(reaction, user, true).catch(error => bot.log(error, 'Asignar auto rol')));
 client.on(Events.MessageReactionRemove, (reaction, user) => bot.community.reactions.handle(reaction, user, false).catch(error => bot.log(error, 'Retirar auto rol')));
 const reconcileReactions = message => {

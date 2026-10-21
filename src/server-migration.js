@@ -18,9 +18,10 @@ export function remapOverwrites(overwrites, roles, members) {
 export function migratedSettings(source, sourceGuild, channels, roles, members, now = Date.now()) {
   const text = value => remapServerText(value, channels, roles);
   const community = Object.fromEntries(Object.entries(source.community ?? {})
-    .filter(([key]) => ['welcome', 'rules', 'roleEmbed', 'welcomeEnabled', 'welcomeVersion', 'rulesVersion', 'rolesVersion'].includes(key))
+    .filter(([key]) => ['welcome', 'farewell', 'rules', 'roleEmbed', 'welcomeEnabled', 'farewellEnabled', 'welcomeVersion', 'farewellVersion', 'rulesVersion', 'rolesVersion'].includes(key))
     .map(([key, value]) => [key, text(value)]));
   community.welcomeChannel = channels[source.community?.welcomeChannel];
+  community.farewellChannel = channels[source.community?.farewellChannel];
   community.gamesSeeded = true;
   const settings = {
     panels: Object.fromEntries(Object.entries(source.panels ?? {}).filter(([, ref]) => channels[ref.channel])

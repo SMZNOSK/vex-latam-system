@@ -1,0 +1,37 @@
+// Propuesta visual local de un embed con emojis dentro del texto.
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import path from 'node:path';
+import { CardRenderer } from '../src/renderer.js';
+
+const out = path.resolve('design/welcome-emojis');
+mkdirSync(out, { recursive: true });
+const reference = `data:image/jpeg;base64,${readFileSync('C:/Users/twisy/Downloads/WhatsApp Image 2026-10-19 at 7.56.19 PM.jpeg').toString('base64')}`;
+const avatar = `data:image/png;base64,${readFileSync('data/preview-members/avatar.png').toString('base64')}`;
+const centers = [76,190,305,420,535,650,766,881,997];
+function emoji(row, col, name, size = 24) {
+  const scale = size / 87, x = (centers[col] - 43.5) * scale, y = (143 + row * 109 - 43.5) * scale;
+  return `<span class="emoji" role="img" aria-label="${name}" style="width:${size}px;height:${size}px"><img src="${reference}" alt="" style="width:${1080*scale}px;left:-${x}px;top:-${y}px"></span>`;
+}
+const heart = () => emoji(0,0,'Corazón del servidor');
+const clan = () => emoji(1,4,'Emblema VXTG');
+const finals = () => emoji(0,4,'THE FINALS');
+const badge = () => emoji(0,1,'Insignia de la comunidad');
+const check = () => emoji(2,1,'Verificado');
+const parrot = () => emoji(0,7,'Reacción de la comunidad');
+const renderer = new CardRenderer();
+try {
+  const welcome = await renderer.render('welcome', { displayName:'SMZ-NOSK', avatarData:avatar, serverName:'VEX LATAM SQUAD' }, 870);
+  const image = `data:image/png;base64,${welcome.toString('base64')}`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bienvenida · Emojis dentro del mensaje</title><style>
+  *{box-sizing:border-box}body{margin:0;background:#1e1f22;color:#f2f3f5;font:16px 'Segoe UI',Arial,sans-serif}.mockup{width:1000px;background:#313338;margin:auto;overflow:hidden}.label{padding:22px 32px;background:#17181b;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #42444b}.label b{font-size:14px;letter-spacing:1.6px}.label span{font-size:11px;color:#a4a7b0;letter-spacing:1.5px}.channel{display:flex;gap:13px;align-items:center;padding:18px 32px;border-bottom:1px solid #242529;font-size:17px;font-weight:600}.hash{font-size:25px;color:#979aa5}.channel small{border-left:1px solid #51535a;padding-left:20px;margin-left:10px;color:#a5a8b3;font-size:12px;font-weight:400}.message{display:grid;grid-template-columns:42px minmax(0,1fr);gap:17px;padding:30px 32px}.bot{height:42px;border-radius:50%;display:grid;place-items:center;background:#ed243b;font-weight:800;font-size:23px}.author{font-size:15px;font-weight:600;margin-bottom:13px}.app{background:#5865f2;border-radius:4px;padding:2px 5px;font-size:10px;margin-left:7px;vertical-align:2px}.time{font-size:11px;color:#9396a0;font-weight:400;margin-left:8px}.mention{color:#c9cdfb;background:#454b77;border-radius:3px;padding:1px 3px}.intro{margin:0 0 15px;line-height:1.6}.embed{max-width:740px;background:#2b2d31;border:1px solid #25262a;border-left:4px solid #ed243b;border-radius:5px;padding:22px 23px 17px}.heading{display:flex;align-items:flex-start;gap:23px}.heading-copy{flex:1;min-width:0}.community{font-size:11px;font-weight:600;letter-spacing:1.3px;color:#a6a9b3;margin:0 0 12px;display:flex;align-items:center;gap:8px}h1{font-size:22px;line-height:1.4;margin:0 0 12px}.thumb{width:74px;height:74px;border-radius:7px;object-fit:cover}.embed p{line-height:1.65;font-size:15px;margin:0 0 13px;color:#dcdee4}.embed strong{color:#f3f4f5}.emoji{position:relative;display:inline-block;overflow:hidden;vertical-align:-6px;margin:0 3px;border-radius:2px}.emoji img{position:absolute;max-width:none;height:auto;display:block}.section{margin-top:20px}.section h2{font-size:15px;line-height:1.65;margin:0 0 6px}.section p{font-size:14px;margin-bottom:6px}.textlink{color:#8fbdff}.art{width:100%;height:auto;display:block;border-radius:5px;margin-top:21px}.embed-foot{display:flex;align-items:center;gap:8px;color:#a6a9b3;font-size:11px;margin-top:15px}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}.actions span{padding:9px 13px;border-radius:4px;background:#4e5058;font-size:12px;font-weight:600}.actions span:first-child{background:#5865f2}.explanation{background:#232428;border-top:1px solid #42444b;padding:19px 32px;display:flex;justify-content:space-between;gap:20px;color:#a6a9b3;font-size:12px;line-height:1.5}.explanation b{color:#f2a0aa}.red{color:#ed243b}
+  </style></head><body><main class="mockup"><header class="label"><b><span class="red">VEX /</span> EMOJIS DENTRO DEL MENSAJE</b><span>MOCKUP · PROPUESTA VISUAL</span></header><div class="channel"><span class="hash">#</span> 📢・bienvenidos <small>VEX LATAM SQUAD</small></div><article class="message"><div class="bot">V</div><div><div class="author">VEX LATAM SYSTEM<span class="app">APP</span><span class="time">hoy a las 20:00</span></div><p class="intro">${heart()} ¡Llegó <span class="mention">@SMZ-NOSK</span> al squad! ${parrot()}</p><section class="embed" aria-label="Mensaje de bienvenida de ejemplo"><div class="heading"><div class="heading-copy"><div class="community">${clan()} VEX LATAM SQUAD</div><h1>${heart()} ¡Bienvenido, hermanito! ${badge()}</h1><p>¡Qué onda, <span class="mention">@SMZ-NOSK</span>! Nos da gusto tenerte por aquí. ${parrot()}</p><p>Ya eres parte de <strong>VEX LATAM SQUAD</strong> ${clan()}<br>Arma tu equipo, comparte buenas partidas y disfruta la comunidad. ${heart()}</p></div><img class="thumb" src="${avatar}" alt="Avatar del nuevo integrante"></div><section class="section"><h2>${finals()} Tu próxima partida empieza aquí</h2><p>Encuentra compañeros para <strong>THE FINALS</strong>, HELLDIVERS 2 y ARC RAIDERS.</p></section><section class="section"><h2>${check()} Primero lo primero, hermanito</h2><p>📜 Revisa <span class="textlink">#reglas</span>.</p><p>${badge()} Elige tus juegos en <span class="textlink">#selección-de-roles</span>.</p><p>${finals()} Encuentra tu squad en <span class="textlink">#buscar-equipo</span>.</p></section><p style="margin-top:19px">${heart()} <strong>Buenas partidas. Mejor compañía.</strong> ${clan()}</p><img class="art" src="${image}" alt="Tarjeta de bienvenida con el nombre y avatar del integrante"><footer class="embed-foot">${clan()} VEX LATAM SQUAD · Tu siguiente victoria empieza aquí</footer></section><div class="actions" aria-label="Accesos de ejemplo"><span>📜 Leer las reglas</span><span>🎭 Elegir mis roles</span><span>🔎 Buscar equipo</span></div></div></article><footer class="explanation"><span><b>Así lo interpreto:</b> los emojis personalizados acompañan las frases del embed.</span><span>Muestra visual tomada de tu captura.</span></footer></main></body></html>`;
+  writeFileSync(path.join(out,'04-emojis-en-el-mensaje.html'),html);
+  const browser = await renderer.browser();
+  const page = await browser.newPage({viewport:{width:1000,height:1600},deviceScaleFactor:1.5});
+  await page.route('**/*',route=>route.abort());
+  await page.setContent(html,{waitUntil:'load'});
+  await page.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode()));});
+  await page.locator('.mockup').screenshot({path:path.join(out,'04-emojis-en-el-mensaje.png')});
+  console.log(path.join(out,'04-emojis-en-el-mensaje.png'));
+  await page.close();
+} finally {await renderer.close();}

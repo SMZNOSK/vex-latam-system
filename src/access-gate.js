@@ -2,6 +2,7 @@ import { PermissionFlagsBits as P, PermissionsBitField } from 'discord.js';
 import { sponsors, completeProfile } from './sponsors.js';
 import { assertAssignable } from './roles.js';
 import { UserError } from './domain.js';
+import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 
 const staffBits = [P.Administrator, P.ManageGuild, P.ManageChannels, P.ManageMessages, P.ModerateMembers];
 const staff = principal => principal?.permissions?.any(staffBits, false) === true;
@@ -53,9 +54,10 @@ export class AccessGate {
     for (const item of targets) {
       let settings = this.bot.store.settings(guild.id);
       const id = item.key ? settings.verifiedRole : settings.sponsorRoles?.[item.id];
-      let role = id ? guild.roles.cache.get(id) : null;
+      let role = boundRole(guild, item.key ? 'verified' : `sponsor.${item.id}`) ?? (id ? guild.roles.cache.get(id) : null);
       // Roles homónimos ajenos no se reutilizan: podrían tener miembros o accesos previos.
       if (!role) {
+        assertPermanentRoleCreation(guild, item.label);
         role = await guild.roles.create({ name: item.label, permissions: [], mentionable: false,
           colors: { primaryColor: Number.parseInt(item.color.slice(1), 16) }, reason: 'Perfiles opcionales y patrocinadores de VEX LATAM' });
         settings = this.bot.store.settings(guild.id);
@@ -65,7 +67,10 @@ export class AccessGate {
       }
       assertAssignable(role, me);
       if (role.permissions.bitfield !== 0n) throw new UserError(`${role.name} debe ser un rol sin permisos.`);
-      if (role.mentionable) await role.setMentionable(false, 'Patrocinadores sin avisos masivos');
+      settings = this.bot.store.settings(guild.id);
+      if (item.key) settings.verifiedRole = role.id;
+      else { settings.sponsorRoles ??= {}; settings.sponsorRoles[item.id] = role.id; }
+      this.bot.store.saveSettings(guild.id, settings);
     }
   }
   async edit(channel, id, values) {

@@ -2,7 +2,48 @@
 
 Bot de Discord con perfiles privados, búsqueda de compañeros, roles, anuncios, reglas y moderación configurable.
 
-Una aplicación y un token para **VEX LATAM SYSTEM**. **VLS Find Squad** es su módulo de perfiles y búsqueda, no otro usuario de bot. La instalación está limitada al servidor indicado por `DISCORD_GUILD_ID` en `.env`, actualmente **VLS´ EXPERIMENTS** (`1560001103419015339`).
+## V1 · Servidor principal
+
+La V1 se ejecuta en **VΞX LΛTΛM SQUΛD** (`1316232884117311558`). Reutiliza los canales y roles definidos por ID en `bot.config.json`; prepara únicamente los recursos que faltan y mantiene los datos de **VLS´ EXPERIMENTS** separados. El estado de despliegue y las limitaciones están en [docs/v1/RELEASE.md](docs/v1/RELEASE.md). Las secciones de traslado a EXPERIMENTS que aparecen más abajo documentan la etapa anterior.
+
+En producción, los controles administrativos están reservados a la cuenta autorizada en `operatorUserIds` y al propietario actual del servidor. Se ejecutan desde **#admin-bot**. Discord permite a otros miembros con **Administrador** ver cualquier canal, pero el bot rechaza sus operaciones administrativas. En pruebas se conserva la comprobación de Administrador.
+
+**Inicio:** abre `iniciar-bot.cmd`, que comprueba Node.js 24, dependencias, navegador, sintaxis y configuración antes de conectar. `iniciar-bot.cmd --pruebas` selecciona EXPERIMENTS sin cambiar `.env`; `--preparar` prepara el entorno sin conectar. Una sola instancia puede usar la carpeta `data`. Desde terminal: `npm start` o `npm run start:test`.
+
+La configuración inicial de producción deja las bienvenidas y despedidas pausadas para coordinar el cambio desde Koya y Carl-bot. Tras desactivar sus mensajes duplicados, los operadores pueden habilitar `/bienvenida activar` y `/despedida activar` en #admin-bot. También se debe retirar en Carl-bot la reacción que autoasigna CLUB VXTG; no se eliminan el rol ni sus miembros actuales.
+
+La guía HTML/CSS está en `docs/v1/index.html` y `docs/v1/guia.css`. `node --env-file=.env scripts/publish-v1.js` la renderiza sin publicar; añadir `--publish` crea o actualiza la publicación del canal de actualizaciones, la guía administrativa y los enlaces de clanes. Discord recibe tres imágenes y los archivos HTML/CSS porque no ejecuta HTML en sus mensajes. Los IDs publicados quedan guardados para actualizar sin duplicar.
+
+El permiso **Fijar mensajes** es opcional: si falta, los carteles y botones funcionan y se publican sin fijar. Los canales de reglas y selección de roles existentes siguen bajo su sistema actual. El rol THE FINALS compartido con otros bots se conserva al eliminar un perfil en producción.
+
+## Panel administrativo y buzones
+
+Al iniciar, el bot prepara la categoría **ADMIN PANEL** con **#admin-bot**, **#buzon-feedback** y **#buzon-reportes**. Solo el dueño y los miembros con el permiso real **Administrador** pueden verlos; el bot conserva su acceso. En el servidor indicado por `testGuildId` en `bot.config.json` también prepara **#pruebas-bot**. Ese canal no se crea en otros servidores.
+
+Todos los comandos administrativos, incluidos torneos y anuncios, requieren ahora **Administrador** y deben ejecutarse en **#admin-bot**. Tener únicamente Administrar servidor no basta. Los comandos de jugadores siguen disponibles en sus canales habituales. **#pruebas-bot** permite revisar publicaciones y flujos; los comandos administrativos también se ejecutan desde **#admin-bot** durante las pruebas.
+
+La categoría pública **BUZONES** contiene **#feedback** y **#reportes**, de lectura con un cartel fijado y botón. El bot guarda los IDs por servidor y actualiza los mismos mensajes al reiniciar. Si falta un canal o cartel, lo recupera sin tocar canales homónimos fuera de estas categorías. Necesita Administrar canales, Ver canales, Enviar mensajes, Leer historial, Insertar enlaces y Fijar mensajes. Las preparaciones pendientes se reintentan cada minuto.
+
+**Feedback** pide asunto, mensaje y una casilla opcional **Enviar anónimamente**. Sin marcar, el buzón privado identifica al autor. Marcada, no publica su nombre ni su ID, y no guarda su identidad o contenido en SQLite. La asociación temporal necesaria para proteger el formulario vive solo en memoria hasta enviar o caducar en veinte minutos. El anonimato no elimina información identificable que el propio usuario escriba en el mensaje.
+
+Cada miembro puede enviar **3 feedbacks por día y servidor**, contando juntos los anónimos y los identificados, incluidos administradores. El día se calcula en `America/Mexico_City` y se renueva a las **00:00, hora de CDMX**. El cuarto intento recibe una respuesta privada; abrir o cancelar el formulario no consume cupo. La cuota se comprueba también al enviar, se reserva antes de entregar y se libera si falla la entrega. Los formularios simultáneos de una persona se procesan en serie. Las confirmaciones indican cuántos mensajes quedan. Esta cuota no se aplica a reportes.
+
+El contador sobrevive a reinicios en la configuración SQLite por servidor. Para conservar el anonimato, guarda únicamente una clave HMAC que cambia por día/servidor y un número, sin nombres, IDs de Discord, texto ni enlaces al mensaje recibido. La clave secreta está en `data/feedback-quota.key`, separada de SQLite; conserva toda la carpeta `data` al trasladar el bot para no reiniciar los contadores. Los contadores del día anterior se reemplazan al reservar el primer envío del día nuevo.
+
+**Reportes** pide un miembro mediante el selector nativo de Discord, la descripción y un enlace HTTP/HTTPS opcional a evidencia. El buzón privado recibe al reportante, al reportado y el contenido. No notifica al reportado, no publica reportes en canales públicos ni aplica sanciones. Los formularios no exigen registrar perfil, y las confirmaciones y errores son privados. Los enlaces se guardan como texto, sin descargarlos.
+
+Antes de cada entrega se comprueban nuevamente los permisos de la categoría y del buzón. Si hay acceso explícito para alguien sin Administrador o falta el bloqueo público, el bot no envía el contenido y deja pendiente reparar los permisos. Los mensajes confirmados quedan guardados en Discord, con menciones desactivadas. Los borradores sin enviar no sobreviven al reinicio.
+
+La instalación inicial y la revisión se hacen en **VLS´ EXPERIMENTS**. Para promover el cambio después de revisar las pruebas, configura `DISCORD_GUILD_ID` con el servidor oficial y reinicia; los IDs y buzones se preparan por separado para ese servidor. No copies los envíos de prueba. Conserva `testGuildId` apuntando a VLS´ EXPERIMENTS para que #pruebas-bot siga limitado allí.
+
+Verificación local y auditoría de Discord de solo lectura:
+
+```
+node --test test/mailboxes.test.js
+node --env-file=.env scripts/audit-mailboxes.js --assert-test
+```
+
+Una aplicación y un token para **VEX LATAM SYSTEM**. **VLS Find Squad** es su módulo de perfiles y búsqueda, no otro usuario de bot. La ejecución está limitada al servidor seleccionado: `DISCORD_GUILD_ID` en `.env` para el principal o `testGuildId` al iniciar con `--pruebas`.
 
 ## Traslado a VLS´ EXPERIMENTS
 
@@ -19,6 +60,16 @@ node --env-file=.env scripts/migrate-server.js --source ID_ORIGEN --target ID_DE
 Con el proceso del bot detenido, añadir `--apply` crea un respaldo coherente de SQLite, prepara el destino y fija el ID del servidor en `.env`. `--layout archivo.json` permite usar canales existentes mediante un mapa de IDs de origen a destino, conservando sus nombres y categorías. Los avances y el respaldo se registran en `data/server-migrations/` para reanudar una operación interrumpida. Se conservan los datos del origen. El script copia roles sin permisos y no reproduce roles administrativos ni sus asignaciones. El propietario del nuevo servidor conserva su acceso; los demás administradores o moderadores se configuran en Discord.
 
 ## Bienvenida, reglas y roles por reacción
+
+Las bienvenidas y despedidas incorporan una tarjeta hecha en HTML/CSS y renderizada a PNG localmente. Ambas muestran el avatar del miembro en este servidor (o su avatar normal de Discord), el nombre y el número de miembros disponible. La bienvenida usa marfil/rojo y la despedida carbón/rojo, con tipografías locales de THE FINALS y la marca VEX LATAM. El avatar se descarga únicamente del CDN de Discord, con límite de tamaño y tiempo, y se normaliza en memoria; si falla, se muestran iniciales. Los nombres se escapan y el navegador del renderizador no puede cargar recursos externos.
+
+Las entradas llegan al canal de bienvenida ya configurado y las salidas a **#despedidas**, creado automáticamente como canal de lectura. No se anuncia a bots ni se reproducen salidas pasadas. La despedida usa «Hasta pronto» con sarcasmo discreto: «Te deseamos un equipo a tu altura. El nuestro seguirá creciendo.», sin atribuir una causa de salida ni indicar expulsiones o baneos. No menciona ni notifica al usuario que salió. Los dos textos predeterminados anteriores se actualizan; los textos personalizados se conservan. Server Members Intent habilita ambos eventos. Si fallan el navegador o los permisos de adjuntos, se conserva el mensaje nativo de texto con enlaces y controles de bienvenida.
+
+En **#admin-bot** puedes usar `/bienvenida probar` y `/despedida probar` para ver tu propia tarjeta en una respuesta privada. `/despedida editar canal:#canal` cambia el canal y el texto que acompaña a la imagen. También existen `/despedida estado`, `/despedida activar` y `/despedida desactivar`. El editor modifica el texto nativo; la composición visual se mantiene en `src/member-card-design.js`. Las imágenes personalizadas de cada miembro se generan al ocurrir el evento y no se guardan en disco.
+
+SQLite v6 respalda la base antes de añadir los recibos de despedida y conserva los perfiles, torneos y recibos de bienvenida. Las salidas se deduplican por ingreso conocido, incluso tras reiniciar. Si Discord entrega un miembro parcial sin fecha de ingreso, se evita repetir su salida durante un minuto. La configuración y los recibos pertenecen al servidor; no se copian mensajes de prueba al cambiar de servidor.
+
+Para generar y revisar los HTML y PNG autocontenidos, ejecuta `node --env-file=.env scripts/preview-members.js --discord`. La muestra utiliza el avatar del dueño del servidor configurado, y se guarda en `data/preview-members/`. El script verifica desbordamientos con nombres largos en 300, 390, 720 y 1080 px. Sin `--discord`, reutiliza la muestra local o emplea iniciales.
 
 Al iniciar prepara los canales públicos **#bienvenidos**, **#reglas** y **#seleccion-de-roles**, conserva sus IDs y reutiliza los mensajes fijados de reglas y roles. Solo el bot y el staff (Administrar servidor o Administrar mensajes) publican; los miembros pueden reaccionar en selección de roles. Puedes mover los paneles con `/panel tipo:reglas` y `/panel tipo:roles`, y la bienvenida con `/bienvenida editar canal:#canal`.
 
@@ -39,7 +90,62 @@ El panel usa **reacciones** en lugar del menú anterior. Se preparan roles segur
 
 **THE FINALS** combina ambos orígenes: se mantiene mientras exista un perfil o una reacción activa. Por eso retirar la reacción de un jugador registrado no le quita el rol, y eliminar el perfil de alguien que conserva la reacción tampoco. Los fallos de roles quedan pendientes para reintentar; al reiniciar se consultan las reacciones del mensaje guardado para recuperar cambios ocurridos mientras el bot estaba apagado.
 
-## Editor de embeds
+## Guía pública de comandos
+
+Al iniciar, el bot publica o actualiza una guía fijada en el canal existente cuyo nombre contiene `comandos-del-bot`. Si falta, crea uno. La guía enumera `/ayuda`, `/perfil`, `/buscar` y `/leaderboard`, con enlaces a los paneles de perfil, búsquedas, torneos, feedback y reportes. `/ping` queda reservado a administradores en #admin-bot. Solo incluye comandos sin restricción administrativa y sus respuestas son privadas. El canal queda de lectura para miembros. Se guarda la referencia del mensaje y se recupera por su pie de página para evitar duplicados.
+
+## Organización de canales de torneos
+
+Cada torneo agrupa sus canales de inscripciones, equipos y voz en una categoría `🏆 TORNEO · nombre · bloque · ID`. Cada miembro puede plegarla o desplegarla con la flecha de Discord. Al terminar con `/torneo terminar`, pasa a `🏁 FINALIZADO` y queda debajo de las categorías normales y de los torneos activos. Cerrar la convocatoria conserva su categoría activa. Se organizan también los canales existentes al reiniciar y se conservan sus IDs, mensajes y permisos individuales; las voces privadas no heredan los permisos públicos de la categoría.
+
+Para torneos grandes se crean bloques adicionales de hasta 50 canales, el límite por categoría de Discord. Las categorías se reutilizan al reiniciar. Tras los 7 días de conservación ya configurados se elimina también cada categoría vacía; si alguien añadió canales ajenos al torneo, su categoría se conserva.
+
+## RS actual y récord del perfil
+
+El campo `score` guarda únicamente el **RS actual**. `peakScore` conserva el mayor RS registrado para el mismo Embark ID; nunca se usa como sustituto del actual. Una bajada actualiza el rango, las búsquedas y el top 10 de perfiles sin bajar el récord. Subir por encima de la marca actualiza ambos. El récord comienza con el valor ya guardado al migrar y no reconstruye máximos anteriores desconocidos. Es una marca global registrada por el bot, no un récord oficial ni separado por temporada. Cambiar a otro Embark ID inicia la marca de esa identidad; diferencias solo de mayúsculas no crean otra identidad.
+
+En `/perfil`, el panel de configurar perfil y los carteles de clanes está **Actualizar RS actual**. Este formulario guarda directamente al enviar, permite bajar los puntos y conserva clase, especializaciones, patrocinador y foto. Una actualización manual invalida la posición global consultada: Ruby no se conserva por un récord antiguo. La caché de la consulta anterior se invalida al cambiar RS para no reutilizarla después de editar manualmente.
+
+La edición completa sigue siendo un borrador hasta pulsar **Guardar cambios** o **Guardar perfil**. Para un perfil ya completo, Guardar cambios está disponible después de enviar identidad/RS, sin volver a elegir especializaciones. El asistente y la ficha muestran si hay cambios sin guardar; se pueden retomar desde `/perfil → Continuar cambios`. Una solicitud de clan no se abre ni se aprueba con un Embark ID o RS pendientes de guardar.
+
+VXTG recomienda **20,000 RS actuales (Oro 4)**. Con menos puntos se permite abrir, enviar y aprobar la solicitud: el formulario y el receptor privado muestran una advertencia, y el botón del staff dice Aprobar con RS bajo. El récord no elimina esa advertencia. Los formularios muestran actual y récord por separado. El bot no lee automáticamente cambios dentro del juego: el usuario debe guardar sus puntos actuales o consultar el tracker. Una consulta fallida no cambia los puntos ni el récord. Los rankings manuales de clanes conservan los valores cargados por el staff.
+
+SQLite v9 agrega la marca a los perfiles existentes con respaldo previo. Las membresías, evidencias, anuncios anteriores y rankings manuales se conservan.
+
+## Clanes VXTG y VXLTM
+
+Al iniciar se reutiliza o crea la categoría pública `CLANES` con `unete-a-vxtg`, `unete-a-vxltm`, `ranking-vxtg` y `ranking-vxltm`. Los canales de ingreso sirven para el cartel, los formularios y los anuncios de integrantes aprobados. Los rankings y carteles son de solo lectura. En `ADMIN PANEL` se prepara `solicitudes-clanes`, privado para administradores reales, con la evidencia y los botones de aprobación y rechazo. También se prepara `rankings-clanes`, un editor privado para el staff. VXTG usa blanco y negro; VXLTM, negro y rojo.
+
+Ambos clanes requieren un perfil completo con Embark ID y RS, además de una captura obligatoria de hasta 8 MB en PNG/JPG/WebP. El formulario toma los datos del perfil y permite añadir horario, zona y un comentario de forma opcional. VXTG recomienda Oro 4 (20,000 RS), según la escala ya usada por el bot, y admite solicitudes con menos RS para revisión del staff. VXLTM admite cualquier RS, también 0. Las solicitudes pendientes se pueden consultar por RS descendente: un RS mayor da prioridad de revisión, sin aprobación automática. Un mismo Discord o Embark ID no puede tener dos membresías activas, y cada usuario puede tener una sola solicitud pendiente. El solicitante puede consultar o cancelar la suya desde el cartel.
+
+La evidencia se conserva en `data/clan-evidence` y se adjunta solo al receptor privado. La revisión es humana: el bot no verifica el contenido de una captura ni cambia membresías dentro de THE FINALS. Aprobar crea el registro, asigna un rol sin permisos globales, envía un mensaje directo y anuncia el ingreso en el canal del clan con una tarjeta HTML/CSS: avatar de Discord, nombre, Embark ID, RS e insignia al ingresar. Los anuncios anteriores se actualizan en su mismo mensaje, sin repetir el DM ni la aprobación. El staff coordina la invitación dentro del juego. Si los mensajes directos están bloqueados, el buzón lo indica y el solicitante puede usar Mi solicitud. Los pasos pendientes sobreviven al reinicio y se reintentan con recibos para recuperar mensajes sin crear otra aprobación. Los roles de clan no se pueden autoasignar por reacción.
+
+Comandos administrativos, desde `#admin-bot` (Discord exige nombres en minúsculas):
+
+```
+/clan-vxtg-numero-miembros total:30
+/clan-vxltm-numero-miembros total:45
+/clan ranking clan:VXTG
+/clan ranking clan:VXLTM
+/clan miembros clan:VXTG
+/clan miembros clan:VXLTM
+/clan solicitudes clan:VXTG
+/clan quitar clan:VXTG usuario:@persona motivo:Motivo de retirada
+```
+
+Los comandos de número guardan **manualmente** el total real dentro de THE FINALS. Aprobar, retirar o salir de Discord no cambia ese número. Se muestran dos datos distintos: total real del juego y registrados por el bot. `/clan miembros` lista de forma privada Discord ID/usuario, Embark ID y RS, con paginación. `/clan quitar` pide confirmar la retirada, elimina su registro y su rol de Discord y conserva una auditoría privada; el retiro dentro del juego lo hace el staff. Salir del servidor cancela solicitudes pendientes y retira su registro de Discord.
+
+Los rankings se mantienen **manualmente**, sin exigir cuenta de Discord ni perfil del bot a quienes aparecen. En `ADMIN PANEL → rankings-clanes`, pulsa **Editar VXTG** o **Editar VXLTM**. Pega o edita la lista completa, una persona por línea: `Jugador#1234 | 32000` o `Nombre | 32000` (hasta 50 jugadores por clan; los 35 caben en un solo formulario). Para quitar a alguien de la tabla, borra su línea. El bot presenta un resumen de altas, bajas y cambios antes de confirmar; una lista vacía también requiere confirmar. Los RS se ordenan de mayor a menor, con desempate por nombre/Embark ID; el rango se calcula usando las insignias de `rangos/`. Ruby requiere posición global verificada y no se asigna solo por RS manuales.
+
+Guardar reemplaza únicamente la tabla de ese clan. Las aprobaciones y los cambios de perfil no agregan jugadores ni cambian sus RS en esta lista; los perfiles siguen siendo necesarios para el formulario de solicitud y las funciones de búsqueda. El total manual del juego y las membresías/roles son independientes. Al migrar se conserva una sola vez el listado de miembros previamente aprobados; después solo lo cambia el staff. El editor detecta ediciones simultáneas para no sobrescribir cambios de otro administrador y conserva auditoría privada del antes/después. Las tablas públicas usan imágenes HTML/CSS y texto nativo, por páginas de 15, y se actualizan en sus mensajes existentes.
+
+Los rankings manuales tienen revisión y conservan solicitudes, membresías, trabajos pendientes y auditoría de clanes, con respaldo previo y separación por servidor. No se importan solicitudes, evidencia ni miembros de prueba al servidor principal. Los carteles y los mensajes de ranking guardan sus referencias; una nueva ejecución actualiza las publicaciones existentes. Los diseños y las muestras ficticias se generan con `node scripts/preview-clans.js`; `--publish-test` publica las muestras solo en el canal privado de pruebas.
+
+## Edición de embeds nativos
+
+Los emojis personalizados se muestran dentro del texto nativo del mensaje: descripciones, títulos y secciones. En #admin-bot, `/embed emojis` abre un catálogo privado y paginado con los nombres y códigos de los emojis de este servidor. En `/bienvenida editar`, `/despedida editar`, `/embed crear`, `/embed editar`, reglas, roles y anuncios puedes escribir `:nombre:`; al guardar se convierte al código de Discord `<:nombre:ID>` o `<a:nombre:ID>` si es animado. Los códigos completos pegados se conservan. Los nombres desconocidos quedan como texto, y los nombres duplicados requieren el código completo. Los emojis en bloques de código o escapados no se sustituyen. Se vuelven a comprobar los límites del embed después de expandirlos.
+
+Usa `/bienvenida probar` para ver el mensaje privado con la tarjeta y los emojis. Estos emojis están en el texto del embed, no en el PNG de la tarjeta. Para usar los del servidor principal hace falta su catálogo y acceso de la aplicación; las copias subidas a otro servidor tienen IDs distintos y deben remapearse al trasladar las plantillas.
 
 ```
 /embed crear nombre:torneo canal:#general
@@ -48,7 +154,7 @@ El panel usa **reacciones** en lugar del menú anterior. Se preparan roles segur
 /embed retirar nombre:torneo
 ```
 
-Solo miembros con Administrar servidor pueden abrir o enviar estos formularios. El identificador usa hasta cuarenta letras minúsculas, números o guiones. El editor admite título, descripción, secciones, color hexadecimal e imagen opcional por URL HTTPS. No aloja una página web. Cada sección se escribe en una línea como `Título | Contenido`; `\\n` inserta un salto dentro del contenido y `[] Título | Contenido` permite mostrarla en columna. Discord adapta las columnas al espacio disponible.
+Solo miembros con Administrador pueden abrir o enviar estos formularios desde #admin-bot. El identificador usa hasta cuarenta letras minúsculas, números o guiones. El editor admite título, descripción, secciones, color hexadecimal e imagen opcional por URL HTTPS. No aloja una página web. Cada sección se escribe en una línea como `Título | Contenido`; `\\n` inserta un salto dentro del contenido y `[] Título | Contenido` permite mostrarla en columna. Discord adapta las columnas al espacio disponible.
 
 Editar actualiza el mismo mensaje; retirar pide confirmación privada y elimina únicamente esa tarjeta. Los borradores duran veinte minutos y pertenecen a la persona que los abrió. Una edición antigua no sobrescribe otra más reciente. Los IDs y el contenido confirmado se guardan en SQLite; las menciones masivas están desactivadas. `/anuncio` permanece como publicación rápida de un embed sin identificador guardado.
 
@@ -115,11 +221,11 @@ Al instalar prepara los dos roles de modo sin permisos y los añade al panel de 
 
 Requiere [**Message Content Intent**](https://docs.discord.com/developers/events/gateway#message-content-intent) en Developer Portal → Bot, `ENABLE_MESSAGE_CONTENT=true` en `.env`, Ver canal, Enviar mensajes y Leer historial en el canal elegido. Para mostrar la tarjeta necesita también Adjuntar archivos y un navegador compatible con el renderizador. Habilitar la lectura de texto no activa el filtro de moderación. Reinicia después de cambiar el intent o `.env`.
 
-Administradores con Administrar servidor pueden consultar o cambiar la función:
+Miembros con Administrador pueden consultar o cambiar la función desde #admin-bot:
 
 ```
 /busqueda-chat estado
-/busqueda-chat palabras lista:quién juega,busco equipo,+1,+2
+/busqueda-chat palabras
 /busqueda-chat configurar canal:#equipos espera:300
 /busqueda-chat configurar juego:@THE FINALS ranks:@THE FINALS RANKS rapidas:@THE FINALS RÁPIDAS
 /busqueda-chat activar
@@ -127,7 +233,7 @@ Administradores con Administrar servidor pueden consultar o cambiar la función:
 /busqueda-chat restablecer
 ```
 
-`/busqueda-chat palabras` **reemplaza** las palabras predeterminadas por la lista elegida. Separa las frases con comas; la detección ignora acentos, mayúsculas y espacios repetidos, y busca palabras o frases completas. Admite hasta 100 elementos de 80 caracteres, con 1000 caracteres en toda la lista. `+1` no coincide con `+10`; puedes añadir también `1+` si quieres reconocer esa forma. No acepta expresiones regulares. El estado muestra la lista completa en una respuesta privada.
+`/busqueda-chat palabras` abre un formulario con la lista actual. Añade o quita entradas, una por línea o separadas por comas; al enviarlo se guarda la lista completa. Cancelar no cambia nada. La detección ignora acentos, mayúsculas y espacios repetidos, y busca palabras o frases completas. Admite hasta 100 elementos de 80 caracteres, con 1000 caracteres en toda la lista. `+1` no coincide con `+10`; puedes añadir también `1+` si quieres reconocer esa forma. No acepta expresiones regulares. La confirmación y el estado muestran la lista completa en una respuesta privada. Si otro administrador cambia la lista mientras editas, tendrás que abrir el formulario de nuevo para conservar sus cambios. Se comprueban el permiso Administrador y #admin-bot tanto al abrir como al guardar.
 
 Cambiar las palabras conserva la función activada o desactivada. Escribir `-` vacía la lista y desactiva la ayuda; para volver a activarla, configura palabras o usa `restablecer`. `restablecer` recupera la detección original con sus variantes sin cambiar el canal, los roles, la espera ni el interruptor. Las palabras se guardan por servidor en SQLite y sobreviven al reinicio.
 
@@ -196,7 +302,7 @@ Guardar perfil, consultar clasificación y cambiar/quitar foto actualizan la mis
 
 ## Otras funciones
 
-Los administradores con Administrar servidor conservan:
+Los miembros con Administrador pueden usar en #admin-bot:
 ```
 /roles agregar rol:@Mediano emoji:🩺 etiqueta:Mediano
 /roles quitar rol:@Mediano
@@ -211,11 +317,13 @@ El panel de reacciones modifica solo los roles configurados y rechaza permisos s
 
 La moderación está desactivada por defecto. Para usarla, activa Message Content Intent en el portal, cambia `ENABLE_MESSAGE_CONTENT=true` en .env, concede Administrar mensajes y reinicia:
 ```
-/moderacion palabras lista:palabra1,frase prohibida,palabra2
+/moderacion palabras
 /moderacion activar
 /moderacion estado
 /moderacion desactivar
 ```
+`/moderacion palabras` abre el editor privado de palabras altisonantes con la lista actual. Añade o quita entradas, una por línea o con comas; guarda la lista completa al enviar. Escribir `-` vacía la lista y desactiva el filtro. Cancelar conserva los ajustes. Tiene los mismos límites y comprobaciones de permisos y edición simultánea que el editor de búsqueda por chat. Guardar palabras no activa automáticamente el filtro.
+
 Borra mensajes con palabras o frases completas, ignorando acentos y mayúsculas. No interpreta el contexto, no aplica castigos y no conserva el contenido eliminado.
 
 ## Verificación
@@ -233,19 +341,29 @@ Las pruebas cubren límites de rango/Ruby, filtros OR, selección dinámica, bor
 
 .env, data y node_modules están excluidos de Git. No compartas el token ni la base de datos al distribuir el código.
 
+## Roles del servidor principal
+
+El servidor de pruebas sigue creando los roles de demostración que le faltan. En cualquier otro servidor, el bot **no crea roles permanentes automáticamente**: primero se revisan los existentes. Si encuentra un rol homónimo, tampoco crea otro. Los roles temporales con ID propio de cada torneo se administran por separado.
+
+Tras instalar el bot en el servidor principal, usa `node --env-file=.env scripts/audit-server-roles.js ID_DEL_SERVIDOR` para obtener un inventario de solo lectura: nombre, ID, permisos, jerarquía y si el bot puede asignar cada rol. El bot debe estar debajo de los roles administrativos y por encima de los roles que asignará; el inventario señala los que quedan fuera de su alcance. No pegues el token en el comando ni compartas `.env`.
+
+En `bot.config.json`, `roleBindings` vincula roles existentes por ID con este formato: `"roleBindings": { "ID_DEL_SERVIDOR": { "finals": "ID_DEL_ROL", "clan.vxtg": "ID_DEL_ROL", "clan.vxltm": "ID_DEL_ROL" } }`. También se admiten `verified`, `sponsor.ospuze` (y los demás IDs de `src/sponsors.js`), `chatSearch.rankedRole`, `chatSearch.quickRole`, `game.helldivers2` y `game.arcRaiders`. Una vinculación errónea detiene esa preparación; no crea un sustituto. Para crear un rol que realmente falte, añade su nombre exacto a `roleCreationApprovedGuilds[ID_DEL_SERVIDOR]` después de la revisión. Los roles automáticos de perfiles, patrocinadores, juegos y búsqueda deben carecer de permisos globales. Los roles de clan pueden conservar permisos ordinarios, pero no permisos administrativos o de moderación. Todos deben quedar por debajo del rol del bot. El bot conserva el color y la configuración de menciones de los roles existentes.
+
 ## Torneos VEX LATAM
 
 Solo el permiso **Administrador** permite ver por defecto y ejecutar `/anuncio` y los comandos de torneos. Tener únicamente Administrar servidor no basta. La comprobación se repite al enviar formularios, publicar y cerrar, aunque alguien modifique la visibilidad del comando en las integraciones de Discord.
 
-1. `/torneo crear`: asistente privado de 45 minutos. Completa calendario (AAAA-MM-DD y HH:MM, siempre hora del **centro de México / CDMX**), cupos en equipos de tres (vacío = abierto), acceso público/VXTG, RS mínimo/máximo opcionales, clases y especializaciones permitidas/baneadas. Revisa la tarjeta antes de pulsar **Publicar torneo**.
+1. `/torneo crear`: asistente privado de 45 minutos. Completa calendario (AAAA-MM-DD y HH:MM, siempre hora del **centro de México / CDMX**), cupos en equipos de tres (vacío = abierto), acceso público/VXTG y, en **02 · Inscripción y reglas**, la modalidad **Individual o equipo de tres** o **Solo individual · equipos después**, además de RS mínimo/máximo y clases permitidas/baneadas. Completa las especializaciones y revisa la tarjeta antes de pulsar **Publicar torneo**.
 2. El anuncio va a `#torneos`. El cartel aparece tanto en el anuncio como en el panel de inscripciones, con las reglas en su descripción accesible. Muestra la fecha de referencia de México centro y horarios locales de México, Guatemala, Costa Rica, Colombia, Perú, Ecuador (Quito), Venezuela, Bolivia, Chile (Santiago), Argentina, Uruguay, Paraguay, Brasil (São Paulo / Brasília) y Estados Unidos (Los Ángeles, Chicago y Nueva York). Las conversiones usan las zonas IANA y las reglas vigentes para la fecha del evento; cualquier cambio de fecha se indica junto a la hora. Las ciudades representan su zona, no todas las zonas de cada país. Ambos paneles etiquetan al rol THE FINALS; el anuncio permite notificar al publicarse y las actualizaciones conservan la etiqueta sin volver a notificar. Cada torneo crea `inscripciones-<nombre>-<id>` y `equipos-<nombre>-<id>`, ambos de lectura con botones. El canal de equipos del buscador sigue siendo independiente.
-3. Los jugadores usan **Inscribirme individualmente** o **Registrar equipo**. Se buscan perfiles del mismo servidor por Embark ID (sin distinguir mayúsculas); luego cada jugador confirma RS exacto/aproximado, clase y especializaciones. La inscripción de equipo exige tres IDs y un nombre único. Los RS aproximados también deben respetar los límites. No se consulta ninguna API externa.
+3. En la modalidad mixta los jugadores usan **Inscribirme individualmente** o **Registrar equipo**. En **Solo individual** aparece únicamente el primer botón. Quien tenga Embark ID en Configurar perfil se inscribe de inmediato con sus datos guardados; quien no tenga perfil escribe solo su Embark ID y queda vinculado a su usuario de Discord dentro del torneo. La respuesta privada confirma el alta y ofrece **Cancelar registro**. Para inscribir un equipo, el organizador escribe su nombre y selecciona con búsqueda nativa a dos compañeros; él queda como líder. Los perfiles completan Embark ID y RS automáticamente. Si falta un Embark ID, un panel privado solicita únicamente ese dato y lo asocia al usuario seleccionado. Los participantes sin perfil aparecen con RS pendiente, sin inventar puntos. Los equipos de individuales se forman después con `/torneo-formar-equipo`; su líder es el integrante con mayor RS registrado y solo él puede cambiar el nombre desde la tarjeta. No se consulta ninguna API externa. Los torneos anteriores conservan la modalidad mixta.
 4. `/torneo-formar-equipo torneo:…`: forma triples con los individuales pendientes, equilibrando sumas de RS mediante asignación y mejoras por intercambio. Desempates aleatorios; los registros más recientes sobrantes quedan pendientes. Los equipos inscritos previamente permanecen intactos. La tarjeta de cada equipo menciona únicamente a sus miembros vinculados.
-5. `/torneo-chat-de-voz-general torneo:…` y `/torneo-chat-de-voz-equipos torneo:…`: crean/reutilizan salas, publican enlaces e intentan mover a quienes ya están conectados. El bot necesita Administrar canales, Administrar roles y Mover miembros; los roles del bot deben estar por encima de los roles de participantes que administra. La sala general usa un rol temporal sin permisos globales para evitar el límite de sobreescrituras; las salas de equipo permiten conectarse solo a sus miembros vinculados y a administradores. Los jugadores desconectados entran manualmente. Los IDs de equipo sin perfil no reciben menciones, roles de voz ni traslados; un administrador puede concederles acceso manual.
+5. `/torneo-chat-de-voz-general torneo:…` y `/torneo-chat-de-voz-equipos torneo:…`: crean/reutilizan salas, publican enlaces e intentan mover a quienes ya están conectados. El bot necesita Administrar canales, Administrar roles y Mover miembros; los roles del bot deben estar por encima de los roles de participantes que administra. La sala general usa un rol temporal sin permisos globales para evitar el límite de sobreescrituras; las salas de equipo permiten conectarse solo a sus miembros de Discord y a administradores, incluso si algún integrante todavía no completó Configurar perfil. Los jugadores desconectados entran manualmente.
 6. `/torneo revisar` lista torneos; con `torneo:` muestra sus detalles. Los parámetros tienen autocompletado. `/torneo cerrar convocatoria torneo:…` pide confirmación y bloquea nuevas inscripciones; el torneo continúa y permite formar equipos y crear o usar voz. Este cierre no inicia la limpieza.
 7. `/torneo terminar torneo:…` pide confirmación, da por terminado el torneo y programa la eliminación de sus canales de inscripciones, equipos y voz, junto con su rol temporal, **7 días (168 horas) después de confirmar**. A partir de ese momento se bloquean las inscripciones, la formación de equipos y la creación de salas. Los paneles muestran fecha y cuenta regresiva. Al vencer el plazo se eliminan también las salas de voz ocupadas. La limpieza se comprueba cada minuto y al recuperar el bot; si estaba apagado, se realiza al volver a conectarse. Los fallos de Discord se reintentan y repetir el fin no extiende el plazo. El anuncio en `#torneos` y el historial interno de inscritos/equipos se conservan; los canales compartidos y los de otros torneos no se eliminan. Los comandos anteriores `/torneos crear`, `/torneos revisar` y `/torneos cerrar` siguen disponibles como alias; el último equivale a cerrar convocatoria. Los torneos cerrados con la versión anterior también se consideran convocatorias cerradas y solo inician los 7 días al usar `/torneo terminar`.
 
-**Clan:** en el primer inicio se prepara el rol `VXTG`, vacío, sin permisos ni autoasignación. Un administrador debe asignarlo manualmente. En torneos de clan, todos necesitan perfil coincidente y ese rol, incluso quienes se inscriban individualmente. Un perfil coincidente de otra persona no puede usarse para una inscripción individual. Si hay varios perfiles con el mismo Embark ID, hay que corregirlos antes de inscribirlo.
+**Edición:** `/torneo editar torneo:…` abre un panel privado para cambiar nombre, fecha, cupos, acceso, modalidad y reglas de un torneo publicado. Conserva ID, inscritos y equipos. Rechaza cupos insuficientes, reglas incompatibles con inscritos, modalidad individual cuando ya hay equipos inscritos y acceso VXTG si hay participantes sin ese rol. Los carteles y tarjetas existentes se actualizan en su lugar. Las tarjetas de equipos muestran los tres usuarios de Discord, su Embark ID, el líder y el RS registrado.
+
+**Clan:** en el primer inicio se prepara el rol `VXTG`, vacío, sin permisos ni autoasignación. Un administrador debe asignarlo manualmente. En torneos de clan, todos necesitan ese rol. Un perfil coincidente de otra persona no puede usarse para una inscripción. Si hay varios perfiles con el mismo Embark ID, hay que corregirlos antes de inscribirlo.
 
 **Persistencia:** SQLite v5 respalda la base anterior en `data/backups/vex-before-v5-*.sqlite` antes de migrar. Torneos, equipos, inscripciones, solicitudes de voz, referencias de canales/mensajes y fecha de eliminación sobreviven reinicios. Los nuevos estados y fechas se guardan en los registros JSON existentes y no requieren otra migración de esquema. Los borradores todavía no confirmados caducan y se pierden al reiniciar. Las publicaciones interrumpidas se reintentan; las marcas de canales y mensajes recuperan el intervalo entre enviar y guardar el ID sin duplicar publicaciones. Tras reiniciar se recuperan las salas solicitadas y los enlaces de torneos vigentes, pero no se vuelve a trasladar a nadie automáticamente. Los canales de torneos terminados nunca se recrean. Las inscripciones siguen abiertas hasta cerrar convocatoria o terminar; la fecha anunciada no cierra por sí sola el torneo.
 
@@ -253,7 +371,11 @@ Pruebas: `node --test test/tournaments.test.js`. Vistas gráficas y comprobació
 
 ## Perfiles opcionales y patrocinadores
 
-El primer formulario exige un patrocinador. Hay once estilos para perfil y equipo; MultiCo no es una opción de registro. El equipo usa el estilo del organizador y cada integrante conserva su distintivo. Los logos originales están en assets/sponsors; `node scripts/prepare-sponsors.js` prepara copias sin márgenes y `node scripts/preview-sponsors.js` genera las vistas de escritorio/móvil en data/preview-sponsors.
+El primer formulario exige un patrocinador. Hay doce estilos para perfil y equipo, incluido **CNS** con el logo proporcionado por la comunidad; MultiCo no es una opción de registro. El equipo usa el estilo del organizador y cada integrante conserva su distintivo. CNS también tiene su rol de identidad, sin permisos ni menciones masivas, con las mismas reglas de cambio y eliminación que los demás patrocinadores.
+
+Cada estilo usa un fondo minimalista generado con ImageGen, guardado en `assets/sponsors/backgrounds/<id>-v2.webp`: colores mate, trazos finos y elementos repartidos entre arcos, bloques, puntos, retículas y fragmentos de marca. Las composiciones son distintas para cada sponsor y no usan luces ni degradados. Son interpretaciones de la comunidad. Los logos se superponen como recursos independientes, y los datos conservan superficies sólidas oscuras. Todo se renderiza localmente, sin solicitudes externas ni generación de imágenes durante el uso del bot. Si falta un fondo, queda el color mate base. Copia `assets` al trasladar el bot y reinicia después de cambiar recursos visuales.
+
+Los logos originales están en `assets/sponsors`; `node scripts/prepare-sponsors.js` prepara copias sin márgenes. `node scripts/preview-sponsors.js` genera 72 vistas de perfil/equipo a 720, 390 y 320 px en `data/preview-sponsors`, junto con un mosaico y la comprobación de fondos, imágenes, superficies mate y desbordamientos. Puedes revisar una sola marca con `node scripts/preview-sponsors.js cns`. Los prompts y la distribución de elementos se conservan en `assets/sponsors/backgrounds/generation-v2.json` y `assets/sponsors/backgrounds/README.md`.
 
 Guardar un perfil completo asigna THE FINALS, el patrocinador elegido y Verificado. Cambiar patrocinador sustituye su rol; pausar búsquedas conserva sus roles. Eliminar el perfil retira el patrocinador y Verificado. Esos roles describen el perfil y no desbloquean el servidor. No pueden configurarse como auto roles por reacción y no generan pings.
 
@@ -261,3 +383,7 @@ Completar el perfil es **opcional para acceder al servidor**. Los miembros sin p
 
 Al actualizar, el bot retira el bloqueo anterior usando `settings.accessGate.snapshots`, restaura únicamente los permisos de visibilidad y conserva permisos de escritura y conexión. Los snapshots públicos que ya contenían el bloqueo de una migración también se normalizan. La restauración se registra para reintentar fallos y no sobrescribir cambios administrativos posteriores. Los canales nuevos usan los permisos normales de Discord. Las salas temporales permiten conectarse únicamente a sus integrantes, sin exigir un perfil completo para el acceso a la sala. Los errores de roles se reintentan. El bot necesita Administrar roles y debe estar por encima de sus roles de identidad; Administrar canales permite restaurar el bloqueo anterior y Server Members Intent permite enviar la bienvenida automática.
 
+
+Las tarjetas de perfil usan una composición editorial para escritorio y móvil: retrato completo junto al nombre, rango, RS actual destacado y récord secundario; clase y especializaciones cierran el bloque, y el patrocinador aparece en una franja inferior. Sin imagen se reorganizan en dos columnas. Los estados de búsqueda y el origen de los datos se muestran en el panel nativo, sin leyendas adicionales en la imagen. El encabezado utiliza el SVG blanco de THE FINALS sobre fondo oscuro; el SVG rojo está disponible para fondos claros.
+
+Los fondos de perfil y equipo mantienen sus extremos anclados arriba y abajo, escalados por el ancho sin deformación. La zona central se adapta a la altura del contenido, sin ampliar y recortar el fondo entero con `cover`. `preview-sponsors.js` comprueba también ese ajuste.

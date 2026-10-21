@@ -4,10 +4,30 @@ import { classes, specializations } from './catalog.js';
 
 export const tournamentId = () => randomBytes(8).toString('hex');
 export const embarkKey = value => String(value).normalize('NFKC').trim().toLowerCase();
-export const rsLabel = p => `${p.approximate ? '≈ ' : ''}${p.score.toLocaleString('es-MX')} RS`;
+export const rsLabel = p => p.score == null ? 'RS sin registrar' : `${p.approximate ? '≈ ' : ''}${p.score.toLocaleString('es-MX')} RS`;
+export function tournamentEmbarkId(value) {
+  const id = String(value ?? '').normalize('NFKC').trim();
+  if (!/^[^#\r\n<>@`]{2,64}#\d{4}$/.test(id)) throw new UserError('Escribe el Embark ID completo, por ejemplo Jugador#1234.');
+  return id;
+}
 export const localDate = ms => new Intl.DateTimeFormat('es-MX', { timeZone: 'America/Mexico_City', dateStyle: 'long', timeStyle: 'short' }).format(ms);
 export const TOURNAMENT_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 export const tournamentPlayable = t => ['open', 'closed'].includes(t.status);
+export const tournamentRegistrationModes = [
+  { value: 'mixed', label: 'Individual o equipo de tres' },
+  { value: 'solo', label: 'Solo individual · equipos después' },
+];
+export function validateRegistrationMode(value) {
+  const mode = value ?? 'mixed'; // Existing tournaments retain both registration options.
+  if (!tournamentRegistrationModes.some(option => option.value === mode)) throw new UserError('Selecciona una modalidad de inscripción válida.');
+  return mode;
+}
+export function validateSignupMode(t, mode) {
+  if (!['solo', 'team'].includes(mode)) throw new UserError('Tipo de inscripción inválido.');
+  if (validateRegistrationMode(t.registrationMode) === 'solo' && mode === 'team') {
+    throw new UserError('Este torneo solo admite inscripciones individuales. Los equipos se forman después.');
+  }
+}
 export const tournamentStatus = t => t.channelsDeletedAt ? 'TERMINADO · CANALES ELIMINADOS'
   : ({ open: 'INSCRIPCIONES ABIERTAS', publishing: 'PREPARANDO TORNEO', closed: 'CONVOCATORIA CERRADA', finished: 'TORNEO TERMINADO' }[t.status] ?? t.status);
 const tournamentZones = [
@@ -78,11 +98,12 @@ export function validateRules(value) {
   return r;
 }
 export function validateEntrant(p, tournament) {
-  const identity = validateIdentity(p);
-  if (!classes.includes(p.playerClass)) throw new UserError('Elige una clase para jugar este torneo.');
+  const identity = p.score == null ? { embarkId: tournamentEmbarkId(p.embarkId), score: null } : validateIdentity(p);
+  if (identity.score == null) return { ...p, ...identity, playerClass: null, specializationIds: [], approximate: false };
+  if (p.playerClass != null && !classes.includes(p.playerClass) && p.playerClass !== 'Todas las clases') throw new UserError('Actualiza la clase en Configurar perfil para este torneo.');
   const ids = [...new Set(p.specializationIds ?? [])];
-  const usable = allowedSkills(tournament.rules).filter(s => s.playerClass === p.playerClass);
-  if (!ids.length || ids.some(id => !usable.some(s => s.id === id))) throw new UserError('La clase o alguna especialización está excluida por las reglas del torneo.');
+  const usable = allowedSkills(tournament.rules).filter(s => p.playerClass == null || p.playerClass === 'Todas las clases' || s.playerClass === p.playerClass);
+  if (ids.some(id => !usable.some(s => s.id === id))) throw new UserError('La clase o alguna especialización está excluida por las reglas del torneo.');
   if ((tournament.rules.minRS != null && identity.score < tournament.rules.minRS) || (tournament.rules.maxRS != null && identity.score > tournament.rules.maxRS)) throw new UserError(`${identity.embarkId}: RS fuera del intervalo permitido, también para valores aproximados.`);
   return { ...p, ...identity, approximate: Boolean(p.approximate), specializationIds: ids };
 }
@@ -91,9 +112,9 @@ export function balanceTeams(players, random = Math.random) {
   for (let i = shuffled.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
   // Leave the newest registrations pending, so repeated runs don't starve early arrivals.
   const eligible = new Set([...players].sort((a, b) => a.created - b.created).slice(0, Math.floor(players.length / 3) * 3).map(p => p.id));
-  const chosen = shuffled.filter(p => eligible.has(p.id)).sort((a, b) => b.score - a.score);
+  const chosen = shuffled.filter(p => eligible.has(p.id)).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
   const teams = Array.from({ length: chosen.length / 3 }, () => []);
-  const sum = team => team.reduce((n, p) => n + p.score, 0);
+  const sum = team => team.reduce((n, p) => n + (p.score ?? 0), 0);
   for (const p of chosen) { const available = teams.filter(t => t.length < 3).sort((a, b) => sum(a) - sum(b)); available[0].push(p); }
   // Pairwise exchanges strictly reduce squared deviation of team totals.
   for (let pass = 0; pass < 30; pass++) {
@@ -101,7 +122,7 @@ export function balanceTeams(players, random = Math.random) {
     for (let a = 0; a < teams.length; a++) for (let b = a + 1; b < teams.length; b++) {
       let delta = sum(teams[a]) - sum(teams[b]), best = 0, swap;
       for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) {
-        const change = 2 * (teams[a][x].score - teams[b][y].score), gain = delta * delta - (delta - change) ** 2;
+        const change = 2 * ((teams[a][x].score ?? 0) - (teams[b][y].score ?? 0)), gain = delta * delta - (delta - change) ** 2;
         if (gain > best) { best = gain; swap = [x, y]; }
       }
       if (swap) { const [x, y] = swap; [teams[a][x], teams[b][y]] = [teams[b][y], teams[a][x]]; improved = true; }

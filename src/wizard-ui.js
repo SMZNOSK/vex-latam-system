@@ -1,8 +1,9 @@
-import { ActionRowBuilder, ButtonStyle as B, StringSelectMenuBuilder, ModalBuilder, LabelBuilder, CheckboxGroupBuilder } from 'discord.js';
+import { ActionRowBuilder, ButtonStyle as B, StringSelectMenuBuilder, ModalBuilder, LabelBuilder, CheckboxGroupBuilder, TextDisplayBuilder } from 'discord.js';
 import { classes, classChoices, ALL_CLASSES, availableSkills, skillLabels, selectedClasses, classLabel } from './catalog.js';
 import { card, row, button, textLabel, safe, playerCardLabel } from './ui.js';
 import { rankFromRS } from './domain.js';
-import { sponsorLabel, getSponsor } from './sponsors.js';
+import { sponsorLabel, getSponsor, completeProfile } from './sponsors.js';
+import { applyProfileRS, currentRS, recordRS } from './profile-rs.js';
 
 export const draftId = (d, action, value = '') => `draft:${d.id}:${d.revision}:${action}${value ? `:${value}` : ''}`;
 const choices = d => new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
@@ -12,40 +13,47 @@ const choices = d => new ActionRowBuilder().addComponents(new StringSelectMenuBu
     default: d.kind === 'search' ? selectedClasses(d.data).includes(label) : d.data.playerClass === label }))));
 const selected = (label, yes) => `${yes ? '✓ ' : ''}${label}`;
 export function profileDraftPayload(d) {
-  const p = d.data;
-  if (d.step === 'review') return card('03 · Revisa tu perfil', profileText(p), [
+  const p = applyProfileRS(d.base,d.data);
+  if (d.step === 'review') return card('03 · Revisa tu perfil · Sin guardar', profileText(p), [
     row(button(draftId(d, 'save'), 'Guardar perfil', B.Success), button(draftId(d, 'back'), 'Cambiar clase / habilidades')),
     row(button(draftId(d, 'identity'), 'ID / RS / patrocinador / foto'), ...(p.cardImage ? [button(draftId(d, 'image-remove'), 'Quitar imagen')] : []), button(draftId(d, 'cancel'), 'Cancelar')),
-  ], 'Al guardar, recibes Verificado, THE FINALS y tu patrocinador. Aceptas aparecer en sugerencias y en el top 10 por RS. Tu tarjeta o tu Embark ID se mostrará en equipos y clasificación.');
+  ], '**Tus cambios todavía no se han guardado. Pulsa Guardar perfil para aplicarlos.** Al guardar, recibes Verificado, THE FINALS y tu patrocinador. Aceptas aparecer en sugerencias y en el top 10 por RS. Tu tarjeta o tu Embark ID se mostrará en equipos y clasificación.');
   return card('02 · Clase y especializaciones',
-    `**Embark ID:** ${safe(p.embarkId)}\n**RS:** ${p.score} · **Rango:** ${safe(rankFromRS(p.score, p.leaderboardPosition))}\n\n`
+    `**CAMBIOS SIN GUARDAR** · ${d.base?`Perfil guardado: **${currentRS(d.base)?.toLocaleString('es-MX')??'sin'} RS**.`:'Todavía no hay un perfil guardado.'}\n\n**Embark ID:** ${safe(p.embarkId)}\n**RS actual al guardar:** ${p.score.toLocaleString('es-MX')} · **Rango:** ${safe(rankFromRS(p.score, p.leaderboardPosition))}\n**Récord al guardar:** ${recordRS(p)?.toLocaleString('es-MX')??'Pendiente'} RS\n\n`
     + `**Clase:** ${safe(p.playerClass)}\n**Selección:** ${skillLabels(p.specializationIds).map(safe).join(', ') || 'Todavía ninguna'}\n`
     + `**Patrocinador:** ${sponsorLabel(p.sponsorId)}\n`
     + `**Tarjeta:** ${p.cardImage ? 'Imagen adjunta' : 'Sin imagen · Usaremos tu Embark ID'}\n`
     + `${d.notice ? `\n${d.notice}\n` : ''}Elige tu clase y abre las casillas. Marca al menos una especialización.`, [choices(d),
       row(button(draftId(d, 'skills'), 'Elegir especializaciones', B.Primary), button(draftId(d, 'identity'), 'Identidad / patrocinador / foto'), button(draftId(d, 'cancel'), 'Cancelar')),
+      ...(completeProfile(d.base)&&p.specializationIds?.length?[row(button(draftId(d,'save'),'Guardar cambios',B.Success))]:[]),
     ], `Borrador privado · Caduca <t:${Math.floor(d.expires / 1000)}:R>.`);
 }
 export function profileText(p) {
   return `**Embark ID:** ${safe(p.embarkId)}\n**Clase:** ${safe(p.playerClass)}\n`
     + `**Patrocinador:** ${sponsorLabel(p.sponsorId)}\n`
     + `**Especializaciones:** ${skillLabels(p.specializationIds).map(safe).join(', ') || 'Selección pendiente'}\n`
-    + `**RS:** ${p.score ?? 'Pendiente'} · **Rango:** ${safe(p.rank ?? rankFromRS(p.score, p.leaderboardPosition))}\n`
+    + `**RS actual:** ${currentRS(p)?.toLocaleString('es-MX')??'Pendiente'} · **Rango actual:** ${safe(p.rank ?? rankFromRS(p.score, p.leaderboardPosition))}\n`
+    + `**Récord de RS registrado:** ${recordRS(p)?.toLocaleString('es-MX')??'Pendiente'}\n`
     + `**Búsquedas:** ${p.searchable === false ? 'Pausadas' : 'Activas'}\n`
     + `**Tarjeta:** ${p.cardImage ? 'Imagen del jugador' : 'Sin imagen · Embark ID en los equipos'}\n`
     + (p.needsCompletion ? `\n⚠ ${getSponsor(p.sponsorId) ? 'Completa los datos de tu perfil para buscar por compatibilidad.' : 'Elige un patrocinador y completa tu perfil si quieres buscar por compatibilidad.'}${p.legacySpecialization ? ` Referencia anterior: ${safe(p.legacySpecialization)}.` : ''}\n` : '')
-    + (p.rankSource === 'finalstracker' ? `\nRS de [FINALSTRACKER](https://finalstracker.net) · ${safe(p.season)}${p.leaderboardPosition ? ` · Puesto ${p.leaderboardPosition}` : ''}. Fuente comunitaria no oficial.\n` : '\nRS declarados por el jugador. Rango calculado automáticamente.\n')
+    + (p.rankSource === 'finalstracker' ? `\nRS de [FINALSTRACKER](https://finalstracker.net) · ${safe(p.season)}${p.leaderboardPosition ? ` · Puesto ${p.leaderboardPosition}` : ''}. Fuente comunitaria no oficial.\n` : '\nRS declarados por el jugador.\n')
     + 'La identidad del juego es declarada; no está verificada.';
 }
 export function profilePrivatePayload(p, notice = '') {
   const payload = card('Mi perfil · THE FINALS', `${notice ? `${notice}\n\n` : ''}${profileText(p)}`, [
-    row(button('profile:edit', 'Editar perfil', B.Primary), button('profile:sync', 'Consultar clasificación')),
+    row(button('profile:rs','Actualizar RS actual',B.Primary), button('profile:edit', 'Editar perfil'), button('profile:sync', 'Consultar clasificación')),
     row(button('profile:toggle', p.searchable ? 'Pausar búsquedas' : 'Activar búsquedas'), button('profile:delete', 'Eliminar perfil', B.Danger)),
     row(button('profile:image', p.cardImage ? 'Cambiar tarjeta' : 'Subir tarjeta'), ...(p.cardImage ? [button('profile:image-remove', 'Quitar tarjeta')] : [])),
-  ], 'Consultar clasificación envía tu Embark ID a FINALSTRACKER, un servicio comunitario no oficial.');
+  ], 'Tu rango y la recomendación de RS del clan usan el RS actual. El récord es el máximo guardado por el bot para este Embark ID. Consultar clasificación envía tu Embark ID a FINALSTRACKER, un servicio comunitario no oficial.');
   const sponsor = getSponsor(p.sponsorId);
   if (sponsor) payload.components[0].setAccentColor(Number.parseInt(sponsor.color.slice(1), 16));
   return payload;
+}
+export function rsModal(d){
+  return new ModalBuilder().setCustomId(draftId(d,'rs-submit')).setTitle('Actualizar RS actual')
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(`**${safe(d.data.embarkId)}**\nRS actual guardado: **${currentRS(d.data)?.toLocaleString('es-MX')??'sin registrar'}**\nRécord registrado: **${recordRS(d.data)?.toLocaleString('es-MX')??'sin registrar'}**\n\nEscribe tus puntos actuales, aunque hayan bajado. **Al enviar se guardan directamente.** El récord solo aumenta al superar tu mejor marca registrada.`))
+    .addLabelComponents(textLabel('score','RS actual · 0 a 999999',d.data.score,true,6,'Ejemplo: 18000'));
 }
 export function playerCardModal(d) {
   return new ModalBuilder().setCustomId(draftId(d, 'photo-submit')).setTitle('Subir tarjeta del jugador')

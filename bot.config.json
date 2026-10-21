@@ -1,5 +1,19 @@
 {
-  "guildName": "VLS´ EXPERIMENTS",
+  "guildName": "VΞX LΛTΛM SQUΛD",
+  "testGuildId": "1560001103419015339",
+  "productionGuildId": "1316232884117311558",
+  "operatorUserIds": {"1316232884117311558": ["709461658602569758"]},
+  "roleBindings": {"1316232884117311558": {
+    "finals": "1435343076120989707", "clan.vxtg": "1386703912379220192", "clan.vxltm": "1559814674558619668",
+    "chatSearch.rankedRole": "1536861782075773029", "chatSearch.quickRole": "1559814240020463676"
+  }},
+  "roleCreationApprovedGuilds": {"1316232884117311558": ["Verificado", "OSPUZE", "ISEUL-T", "VOLPE", "HOLTOW", "VAIIYA", "ENGIMO", "DISSUN", "ALFA ACTA", "IVADA", "TRENTILA", "COMETA", "CNS"]},
+  "productionChannels": {
+    "welcome": "1401339483324153866", "rules": "1401331560258474176", "roleSelection": "1487560889065275433",
+    "tournamentAnnouncements": "1551375375701909514", "clanInformation": "1534658508941955103", "suggestions": "1561609370150764674",
+    "rankedChat": "1496746059664330832", "quickChat": "1512713341959671931", "cashoutChat": "1536576899445170309",
+    "socialCategory": "1561608946597363772", "startCategory": "1401330667949920316", "updates": "1561612169223606302"
+  },
   "registrationChannelName": "registro-de-datos",
   "searchChannelName": "buscar-equipo",
   "createSearchChannelIfMissing": true,

@@ -4,7 +4,8 @@ import { Collection, MessageType, PermissionsBitField, PermissionFlagsBits as P 
 import { Store } from '../src/store.js';
 import { VexBot } from '../src/bot.js';
 import { ChatSearch, lookingForTeam, hasRegion, chatSearchPayload, parseChatSearchTerms } from '../src/chat-search.js';
-import { contentIntent } from '../src/config.js';
+import { contentIntent, config } from '../src/config.js';
+config.roleCreationApprovedGuilds.g=['THE FINALS RANKS','THE FINALS RÁPIDAS'];
 import { commands } from '../src/commands.js';
 
 async function fixture() {
@@ -162,14 +163,14 @@ test('la moderación tiene prioridad sobre las sugerencias', { skip: !contentInt
   } finally { f.store.close(); }
 });
 
-test('comando registrado para Administrar servidor y espera entre 30 y 3600 segundos', () => {
+test('comando registrado para Administrador y espera entre 30 y 3600 segundos', () => {
   const command = commands.find(c => c.name === 'busqueda-chat');
-  assert.equal(command.default_member_permissions, P.ManageGuild.toString());
+  assert.equal(command.default_member_permissions, P.Administrator.toString());
   assert.deepEqual(command.options.map(o => o.name), ['estado', 'activar', 'desactivar', 'palabras', 'restablecer', 'configurar']);
   const options = command.options.find(o => o.name === 'configurar').options;
   assert.equal(options.find(o => o.name === 'espera').min_value, 30);
-  const words = command.options.find(o => o.name === 'palabras').options[0];
-  assert.equal(words.name, 'lista'); assert.equal(words.required, true); assert.equal(words.max_length, 1000);
+  const words = command.options.find(o => o.name === 'palabras');
+  assert.equal(words.options?.length ?? 0, 0);
 });
 
 test('palabras y estado muestran la lista completa, conservan ajustes y cambios inválidos no se guardan', async () => {
@@ -258,6 +259,6 @@ test('administración guarda cambios, conserva otros ajustes y rechaza roles rep
     i.options.getRole = () => dangerous;
     await assert.rejects(f.bot.chatSearch.configure(i), /no es apto/);
     assert.equal(f.store.settings('g').chatSearch.rankedRole, 'ranks');
-    await assert.rejects(f.bot.command({ commandName: 'busqueda-chat', memberPermissions: new PermissionsBitField() }), /Administrar servidor/);
+    await assert.rejects(f.bot.command({ commandName: 'busqueda-chat', memberPermissions: new PermissionsBitField() }), /Administrador/);
   } finally { f.store.close(); }
 });

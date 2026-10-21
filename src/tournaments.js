@@ -3,18 +3,25 @@ import { createHash } from 'node:crypto';
 import { Drafts } from './drafts.js';
 import { UserError } from './domain.js';
 import { TournamentStore } from './tournament-store.js';
-import { tournamentId, embarkKey, validateBasics, validateRules, validateEntrant, shortName, tournamentPlayable, tournamentStatus, localDate } from './tournament-domain.js';
-import { tournamentModal, draftPanel, tournamentPayload, registrationPayload, teamPayload, voiceLink, rulesText } from './tournament-ui.js';
+import { TournamentLayout } from './tournament-layout.js';
+import { tournamentId, tournamentEmbarkId, embarkKey, validateBasics, validateRules, validateRegistrationMode, validateSignupMode, validateEntrant, shortName, tournamentPlayable, tournamentStatus, localDate } from './tournament-domain.js';
+import { tournamentModal, draftPanel, draftControl, tournamentPayload, registrationPayload, teamPayload, voiceLink, rulesText } from './tournament-ui.js';
 import { noMentions, privateFlags, safe, card, row, button } from './ui.js';
+import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
+import { requireOperator, canOperate } from './admin-access.js';
 
 export const tournamentCommands = ['torneo', 'torneos', 'torneo-formar-equipo', 'torneo-chat-de-voz-general', 'torneo-chat-de-voz-equipos'];
 export function requireTournamentAdmin(i) {
-  if (!i.memberPermissions?.has(P.Administrator)) throw new UserError('Solo miembros con permiso Administrador pueden usar esta función.');
+  requireOperator(i);
 }
 const missing = error => [10003, 10008, 10011, 10007].includes(error.code);
 const fetchOrNull = async task => { try { return await task(); } catch (e) { if (missing(e)) return null; throw e; } };
+function mexicoFields(stamp) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(stamp).map(x => [x.type, x.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
 export class Tournaments {
-  constructor(bot) { this.bot = bot; this.store = new TournamentStore(bot.store); this.drafts = new Drafts(45 * 60000); }
+  constructor(bot) { this.bot = bot; this.store = new TournamentStore(bot.store); this.drafts = new Drafts(45 * 60000); this.layout = new TournamentLayout(this); }
   event(id, guild) {
     const t = this.store.get(id);
     if (!t || t.guild !== guild) throw new UserError('Selecciona un torneo de este servidor. Usa /torneo revisar.');
@@ -23,11 +30,15 @@ export class Tournaments {
   async setup(guild) {
     const settings = this.bot.store.settings(guild.id);
     await guild.roles.fetch();
-    let role = settings.tournamentClanRole ? guild.roles.cache.get(settings.tournamentClanRole) : null;
+    let role = boundRole(guild, 'clan.vxtg') ?? (settings.tournamentClanRole ? guild.roles.cache.get(settings.tournamentClanRole) : null);
     if (!role) {
       const matches = guild.roles.cache.filter(r => r.name === 'VXTG');
       if (matches.size > 1) throw new UserError('Hay varios roles VXTG. Conserva un único rol de clan para configurar torneos.');
-      role = matches.first() ?? await guild.roles.create({ name: 'VXTG', permissions: [], mentionable: false, reason: 'Identificación del clan para torneos; asignación manual por administradores' });
+      role = matches.first();
+      if (!role) {
+        assertPermanentRoleCreation(guild, 'VXTG');
+        role = await guild.roles.create({ name: 'VXTG', permissions: [], mentionable: false, reason: 'Identificación del clan para torneos; asignación manual por administradores' });
+      }
     }
     let channel = settings.tournamentsChannel ? await fetchOrNull(() => guild.channels.fetch(settings.tournamentsChannel)) : null;
     if (!channel) {
@@ -45,7 +56,7 @@ export class Tournaments {
       { id: this.bot.client.user.id, type: 1, allow: [P.ViewChannel, P.SendMessages, P.ReadMessageHistory, P.EmbedLinks, P.AttachFiles, P.ManageChannels] }];
   }
   async autocomplete(i) {
-    if (!i.memberPermissions?.has(P.Administrator)) return i.respond([]);
+    if (!canOperate(i)) return i.respond([]);
     const query = i.options.getFocused().toLowerCase();
     return i.respond(this.store.list(i.guildId).filter(t => `${t.name} ${t.id}`.toLowerCase().includes(query)).slice(0, 25).map(t => ({ name: `${tournamentStatus(t)} · ${t.name} · ${t.id}`.slice(0, 100), value: t.id })));
   }
@@ -53,7 +64,7 @@ export class Tournaments {
     requireTournamentAdmin(i);
     const sub = ['torneo', 'torneos'].includes(i.commandName) ? i.options.getSubcommand() : null;
     if (sub === 'crear') {
-      const d = this.drafts.create('tournament-create', i.guildId, i.user.id, { rules: validateRules({}), access: 'public' });
+      const d = this.drafts.create('tournament-create', i.guildId, i.user.id, { rules: validateRules({}), access: 'public', registrationMode: 'mixed' });
       return i.showModal(tournamentModal(d, 'basics'));
     }
     const id = i.options.getString('torneo');
@@ -62,6 +73,14 @@ export class Tournaments {
       return this.bot.replyCard(i, card('Torneos del servidor', all.slice(0, 20).map(t => `**${safe(t.name)}** · ${tournamentStatus(t)}\nID: \`${t.id}\`${t.registrationChannel ? ` · <#${t.registrationChannel}>` : ''}${t.deleteAt && !t.channelsDeletedAt ? `\nEliminar canales: <t:${Math.floor(t.deleteAt / 1000)}:R>` : ''}`).join('\n\n') || 'Todavía no hay torneos. Usa /torneo crear.'));
     }
     const t = this.event(id, i.guildId);
+    if (sub === 'editar') {
+      if (!tournamentPlayable(t)) throw new UserError('Solo puedes editar un torneo publicado que no haya terminado.');
+      const d = this.drafts.create('tournament-edit', i.guildId, i.user.id, {
+        ...t, ...mexicoFields(t.startsAt), capacity: t.capacity == null ? '' : String(t.capacity),
+        baseRevision: t.editRevision ?? 0, tournament: t.id, rulesDone: true, skillsDone: true,
+      });
+      return this.bot.replyCard(i, draftPanel(d));
+    }
     if (sub === 'cerrar' || sub === 'convocatoria') {
       if (!tournamentPlayable(t)) throw new UserError('El torneo terminó o todavía no fue publicado.');
       return this.bot.replyCard(i, card('Cerrar convocatoria', `**${safe(t.name)}**\nSe bloquearán las nuevas inscripciones. Podrás seguir formando equipos y creando o usando las salas de voz. Para iniciar los 7 días de conservación, usa /torneo terminar.`, [row(button(`tour:close:${t.id}`, 'Cerrar convocatoria'))]));
@@ -79,7 +98,8 @@ export class Tournaments {
     }
     return this.bot.queue(`tournament:${t.id}`, async () => {
       if (i.commandName === 'torneo-formar-equipo') {
-        const result = this.store.form(t.id);
+        const profiles = new Map(this.bot.store.profiles(i.guildId).map(p => [p.user, p]));
+        const result = this.store.form(t.id, Math.random, profiles);
         const posted = await this.sync(i.guild, t.id).then(() => true).catch(e => { this.bot.log(e, 'Publicar equipos; se reintentará'); return false; });
         return this.bot.sendPrivate(i, `${result.teams.length} equipos formados; ${result.pending} jugadores siguen pendientes.${posted ? ' Tarjetas actualizadas.' : ' Equipos guardados; las tarjetas se reintentarán automáticamente.'}`);
       }
@@ -94,10 +114,56 @@ export class Tournaments {
     if (kind === 'join') {
       const t = this.event(id, i.guildId);
       if (t.status !== 'open') throw new UserError('Las inscripciones están cerradas.');
-      if (!['solo', 'team'].includes(revision)) throw new UserError('Tipo de inscripción inválido.');
+      validateSignupMode(t, revision);
+      const existing = this.store.entries(id).find(p => p.user === i.user.id);
+      if (existing) {
+        const team = existing.team ? this.store.teams(id).find(x => x.id === existing.team) : null;
+        if (team?.source === 'premade' && team.leader !== i.user.id) {
+          await this.bot.sendPrivate(i, `Ya estás inscrito con **${safe(team.name)}**. El líder gestiona la cancelación del equipo.`); return true;
+        }
+        await this.bot.replyCard(i, this.receipt(id, 'Ya estás registrado en este torneo.')); return true;
+      }
       const own = this.bot.store.profile(i.guildId, i.user.id);
-      const d = this.drafts.create(`tournament-signup-${id}`, i.guildId, i.user.id, { tournament: id, mode: revision, index: 0, people: revision === 'solo' && own ? [{ embarkId: own.embarkId }] : [] });
-      await i.showModal(tournamentModal(d, 'identity')); return true;
+      if (revision === 'solo' && own?.embarkId) {
+        await this.bot.ackCard(i);
+        const person = await this.participant(i.guild, i.user.id);
+        await this.bot.queue(`tournament:${id}`, async () => {
+          const current = this.event(id, i.guildId);
+          const people = await this.verifyPlayers(i.guild, current, [person], i.user.id);
+          this.store.register(id, people);
+          await this.sync(i.guild, id).catch(e => this.bot.log(e, 'Actualizar torneo; se reintentará'));
+        });
+        await this.bot.replyCard(i, this.receipt(id, 'Ya estás registrado en el torneo.')); return true;
+      }
+      const d = this.drafts.create(`tournament-signup-${id}`, i.guildId, i.user.id, { tournament: id, mode: revision, people: [] });
+      await i.showModal(tournamentModal(d, revision === 'solo' ? 'solo-id' : 'identity')); return true;
+    }
+    if (kind === 'withdraw') {
+      await this.bot.ackCard(i);
+      let removed;
+      await this.bot.queue(`tournament:${id}`, async () => {
+        this.event(id, i.guildId);
+        removed = this.store.withdraw(id, i.user.id);
+        const latest = this.event(id, i.guildId);
+        if (latest.voiceRole) for (const user of removed.removedUsers) {
+          const member = await fetchOrNull(() => i.guild.members.fetch(user));
+          if (member?.roles.cache.has(latest.voiceRole)) await member.roles.remove(latest.voiceRole).catch(e => this.bot.log(e, 'Retirar acceso a voz del torneo'));
+        }
+        if (removed.team) {
+          const t = this.event(id, i.guildId);
+          const channel = t.teamsChannel ? await fetchOrNull(() => i.guild.channels.fetch(t.teamsChannel)) : null;
+          if (channel && removed.team.message) await fetchOrNull(() => channel.messages.fetch(removed.team.message)).then(m => m?.delete().catch(e => this.bot.log(e, 'Retirar tarjeta del equipo')));
+          if (removed.team.voiceChannel) await fetchOrNull(() => i.guild.channels.fetch(removed.team.voiceChannel)).then(c => c?.delete().catch(e => this.bot.log(e, 'Retirar sala del equipo')));
+        }
+        await this.sync(i.guild, id).catch(e => this.bot.log(e, 'Actualizar torneo; se reintentará'));
+      });
+      await this.bot.sendPrivate(i, removed.team?.source === 'premade' ? 'Inscripción del equipo cancelada.' : 'Tu inscripción fue cancelada.'); return true;
+    }
+    if (kind === 'rename') {
+      const team = this.store.teams(id).find(x => x.id === revision);
+      if (!team || team.leader !== i.user.id) throw new UserError('Solo el líder puede cambiar el nombre de este equipo.');
+      const d = this.drafts.create('tournament-rename', i.guildId, i.user.id, { tournament: id, team: team.id, name: team.name });
+      await i.showModal(tournamentModal(d, 'rename')); return true;
     }
     if (['close', 'finish', 'retry'].includes(kind)) {
       requireTournamentAdmin(i); this.event(id, i.guildId);
@@ -119,52 +185,67 @@ export class Tournaments {
     }
     if (kind !== 'd') throw new UserError('Control de torneo desconocido.');
     const d = this.drafts.get(id, i.guildId, i.user.id);
-    if (d.kind === 'tournament-create') requireTournamentAdmin(i);
+    if (['tournament-create', 'tournament-edit'].includes(d.kind)) requireTournamentAdmin(i);
     if (d.revision !== Number(revision) || d.busy) throw new UserError('Usa el panel más reciente o espera a que termine la acción actual.');
     if (action === 'cancel') { this.drafts.remove(d.id); await this.bot.sendPrivate(i, 'Asistente cancelado.'); return true; }
-    if (['basics', 'rules', 'skills', 'identity', 'player'].includes(action)) {
+    if (['basics', 'rules', 'skills', 'identity', 'solo-id', 'missing', 'rename'].includes(action)) {
       const adminStep = ['basics', 'rules', 'skills'].includes(action);
-      if (adminStep !== (d.kind === 'tournament-create')) throw new UserError('Este formulario no corresponde al asistente.');
+      if (adminStep !== ['tournament-create', 'tournament-edit'].includes(d.kind)) throw new UserError('Este formulario no corresponde al asistente.');
+      if (!adminStep && d.kind.startsWith('tournament-signup-')) validateSignupMode(this.event(d.data.tournament, i.guildId), d.data.mode);
       await i.showModal(tournamentModal(d, action)); return true;
     }
     d.busy = true;
     try {
       if (action?.startsWith('save-') && i.isModalSubmit()) {
         const step = action.slice(5), value = key => i.fields.getTextInputValue(key), selected = key => i.fields.getStringSelectValues(key);
-        if (d.kind === 'tournament-create') {
-          if (step === 'basics') d.data = { ...d.data, ...validateBasics({ name: value('name'), date: value('date'), time: value('time'), capacity: value('capacity'), access: selected('access')[0] }) };
+        if (['tournament-create', 'tournament-edit'].includes(d.kind)) {
+          if (step === 'basics') {
+            const sameDate = d.kind === 'tournament-edit' && value('date') === mexicoFields(d.data.startsAt).date && value('time') === mexicoFields(d.data.startsAt).time;
+            d.data = { ...d.data, ...validateBasics({ name: value('name'), date: value('date'), time: value('time'), capacity: value('capacity'), access: selected('access')[0] }, sameDate ? d.data.startsAt - 1 : Date.now()) };
+          }
           else if (step === 'rules') {
+            const registrationMode = validateRegistrationMode(selected('registrationMode')[0] ?? d.data.registrationMode);
             const rules = validateRules({ minRS: value('minRS'), maxRS: value('maxRS'), allowedClasses: selected('allowedClasses'), bannedClasses: selected('bannedClasses') });
-            d.data = { ...d.data, rules, rulesDone: true, skillsDone: false };
+            d.data = { ...d.data, registrationMode, rules, rulesDone: true, skillsDone: false };
           } else if (step === 'skills' && d.data.rulesDone) {
             d.data.rules = validateRules({ ...d.data.rules, allowedSkills: selected('allowedSkills'), bannedSkills: selected('bannedSkills') }); d.data.skillsDone = true;
           } else throw new UserError('Completa el asistente en orden.');
+        } else if (d.kind === 'tournament-rename') {
+          if (step !== 'rename') throw new UserError('Formulario de nombre inválido.');
+          await this.bot.ackCard(i);
+          await this.bot.queue(`tournament:${d.data.tournament}`, async () => {
+            this.store.renameTeam(d.data.tournament, i.user.id, { team: d.data.team, value: value('teamName') });
+            this.drafts.remove(d.id);
+            await this.sync(i.guild, d.data.tournament).catch(e => this.bot.log(e, 'Actualizar tarjeta del equipo; se reintentará'));
+          });
+          await this.bot.sendPrivate(i, 'Nombre del equipo actualizado.'); return true;
         } else {
           const t = this.event(d.data.tournament, i.guildId);
           if (t.status !== 'open') throw new UserError('Este torneo ya cerró.');
-          if (step === 'identity') {
-            const count = d.data.mode === 'solo' ? 1 : 3, people = [];
-            const teamName = count === 3 ? shortName(value('teamName'), 'Equipo') : null;
-            for (let n = 0; n < count; n++) {
-              const embarkId = value(`id${n}`).trim();
-              const matches = this.bot.store.profiles(i.guildId).filter(p => embarkKey(p.embarkId) === embarkKey(embarkId));
-              if (matches.length > 1) throw new UserError(`${embarkId}: hay varios perfiles con ese ID; un administrador debe corregirlos antes de inscribirlo.`);
-              const profile = matches[0];
-              if (count === 1 && profile && profile.user !== i.user.id) throw new UserError('Ese perfil pertenece a otro miembro. Usa tu propio Embark ID.');
-              people.push({ embarkId, score: profile?.score, playerClass: profile?.playerClass, specializationIds: profile?.specializationIds ?? [], user: profile?.user ?? (count === 1 ? i.user.id : null), profileMatched: Boolean(profile), approximate: false });
-            }
-            if (new Set(people.map(p => embarkKey(p.embarkId))).size !== count) throw new UserError('Cada jugador debe tener un Embark ID distinto.');
-            d.data = { ...d.data, people, teamName, index: 0 };
-          } else if (step === 'player' && d.data.people?.[d.data.index]) {
-            const p = validateEntrant({ ...d.data.people[d.data.index], score: value('score'), approximate: selected('approximate')[0] === 'approximate', playerClass: selected('playerClass')[0], specializationIds: selected('specializationIds'), confirmed: true }, t);
-            d.data.people[d.data.index] = p;
-            if (d.data.index < d.data.people.length - 1) d.data.index++;
-          } else throw new UserError('Primero registra los Embark ID.');
+          validateSignupMode(t, d.data.mode);
+          await this.bot.ackCard(i);
+          if (step === 'solo-id' && d.data.mode === 'solo') {
+            d.data.people = [await this.participant(i.guild, i.user.id, value('embarkId'))];
+          } else if (step === 'identity' && d.data.mode === 'team') {
+            const teammates = i.fields.getSelectedUsers('teammates', true);
+            const ids = [...teammates.keys()];
+            if (ids.length !== 2 || ids.includes(i.user.id)) throw new UserError('Selecciona dos compañeros distintos de ti.');
+            d.data.teamName = shortName(value('teamName'), 'Equipo');
+            d.data.people = await Promise.all([i.user.id, ...ids].map(user => this.participant(i.guild, user)));
+          } else if (step === 'missing' && d.data.mode === 'team') {
+            const missing = d.data.people.find(p => !p.embarkId);
+            if (!missing) throw new UserError('Todos los jugadores ya tienen Embark ID.');
+            d.data.people[d.data.people.indexOf(missing)] = await this.participant(i.guild, missing.user, value('embarkId'));
+          } else throw new UserError('Formulario de inscripción inválido.');
+          if (d.data.people.every(p => p.embarkId)) {
+            d.revision++;
+            await this.finishRegistration(i, d); return true;
+          }
         }
         d.revision++;
         await this.bot.ackCard(i);
         let payload = draftPanel(d);
-        if (d.kind === 'tournament-create' && d.data.skillsDone) {
+        if (['tournament-create', 'tournament-edit'].includes(d.kind) && d.data.skillsDone) {
           // Native embed preview includes exactly the graphic that will be posted publicly.
           const previewData = { ...d.data, id: 'vista-previa', status: 'open' };
           const preview = await this.graphic(tournamentPayload(previewData), 'tournament-poster', previewData, { posterOnly: true });
@@ -172,11 +253,24 @@ export class Tournaments {
         }
         await this.bot.replyCard(i, payload); return true;
       }
-      if (action === 'publish' && d.kind === 'tournament-create') {
+      if (action === 'publish' && ['tournament-create', 'tournament-edit'].includes(d.kind)) {
         if (!d.data.skillsDone) throw new UserError('Completa todas las reglas antes de publicar.');
-        validateBasics(d.data); validateRules(d.data.rules);
+        const basics = validateBasics(d.data, d.kind === 'tournament-edit' && d.data.startsAt <= Date.now() ? d.data.startsAt - 1 : Date.now());
+        validateRules(d.data.rules);
+        const registrationMode = validateRegistrationMode(d.data.registrationMode);
         await this.bot.ackCard(i);
-        const t = this.store.save({ ...d.data, id: tournamentId(), guild: i.guildId, creator: i.user.id, status: 'publishing', created: Date.now(), dirty: true });
+        if (d.kind === 'tournament-edit') {
+          const updated = await this.bot.queue(`tournament:${d.data.tournament}`, async () => {
+            const { name, startsAt, capacity, access } = basics;
+            const { rules } = d.data;
+            const saved = this.store.updateDetails(d.data.tournament, d.data.baseRevision, { name, startsAt, capacity, access, rules, registrationMode });
+            await this.sync(i.guild, saved.id).catch(e => this.bot.log(e, 'Actualizar torneo editado; se reintentará'));
+            return saved;
+          });
+          this.drafts.remove(d.id);
+          await this.bot.sendPrivate(i, `Cambios guardados en **${safe(updated.name)}**. Los carteles y tarjetas se están actualizando.`); return true;
+        }
+        const t = this.store.save({ ...d.data, registrationMode, id: tournamentId(), guild: i.guildId, creator: i.user.id, status: 'publishing', created: Date.now(), dirty: true });
         this.drafts.remove(d.id);
         try { await this.bot.queue(`tournament:${t.id}`, () => this.sync(i.guild, t.id)); }
         catch (e) { this.bot.log(e, 'Publicar torneo pendiente'); await this.bot.sendPrivate(i, `Torneo guardado (${t.id}). Faltó completar la publicación; se reintentará automáticamente. Usa /torneos revisar para recuperarlo.`); return true; }
@@ -184,32 +278,57 @@ export class Tournaments {
         await this.bot.sendPrivate(i, `Torneo publicado en <#${published.announcementChannel}>. Inscripciones en <#${published.registrationChannel}>.${t.access === 'clan' ? ' Recuerda asignar manualmente el rol VXTG a todos los miembros del clan.' : ''}`); return true;
       }
       if (action === 'register' && d.kind.startsWith('tournament-signup-')) {
-        if (!d.data.people?.length || !d.data.people.every(p => p.confirmed)) throw new UserError('Revisa los datos de todos los jugadores.');
-        await this.bot.ackCard(i);
-        await this.bot.queue(`tournament:${d.data.tournament}`, async () => {
-          const t = this.event(d.data.tournament, i.guildId);
-          const people = await this.verifyPlayers(i.guild, t, d.data.people, d.data.mode === 'solo' ? i.user.id : null);
-          this.store.register(t.id, people, d.data.teamName);
-          this.drafts.remove(d.id);
-          await this.sync(i.guild, t.id).catch(e => this.bot.log(e, 'Actualizar torneo; se reintentará'));
-        });
-        await this.bot.sendPrivate(i, d.data.mode === 'solo' ? 'Inscripción guardada. Quedas pendiente de equipo; te mencionaremos cuando se forme.' : 'Equipo inscrito. Su tarjeta se publicará en el canal de equipos del torneo.'); return true;
+        if (!d.data.people?.length || d.data.people.some(p => !p.embarkId)) throw new UserError('Asocia los Embark ID pendientes.');
+        await this.finishRegistration(i, d); return true;
       }
       throw new UserError('Control de torneo inválido.');
     } finally { d.busy = false; }
   }
+  receipt(id, message) {
+    return card('✅ Inscripción confirmada', message, [row(button(`tour:withdraw:${id}`, 'Cancelar registro', ButtonStyle.Danger))]);
+  }
+  async participant(guild, user, suppliedId = null) {
+    const member = await fetchOrNull(() => guild.members.fetch({ user, force: true }));
+    if (!member || member.user?.bot) throw new UserError('Selecciona miembros humanos que sigan en este servidor.');
+    const profile = this.bot.store.profile(guild.id, user);
+    const embarkId = profile?.embarkId ? tournamentEmbarkId(profile.embarkId) : suppliedId ? tournamentEmbarkId(suppliedId) : null;
+    if (embarkId) {
+      const matches = this.bot.store.profiles(guild.id).filter(p => embarkKey(p.embarkId) === embarkKey(embarkId));
+      if (matches.some(p => p.user !== user) || matches.length > 1) throw new UserError(`${embarkId} ya pertenece al perfil de otro miembro.`);
+    }
+    return { user, embarkId, score: profile?.score ?? null, playerClass: profile?.playerClass ?? null,
+      specializationIds: profile?.specializationIds ?? [], profileMatched: Boolean(profile?.embarkId),
+      approximate: false, displayName: member.displayName ?? member.user?.username ?? 'jugador' };
+  }
+  async finishRegistration(i, d) {
+    await this.bot.ackCard(i);
+    await this.bot.queue(`tournament:${d.data.tournament}`, async () => {
+      const t = this.event(d.data.tournament, i.guildId);
+      validateSignupMode(t, d.data.mode);
+      const people = await this.verifyPlayers(i.guild, t, d.data.people, d.data.mode === 'solo' ? i.user.id : null);
+      this.store.register(t.id, people, d.data.teamName, Date.now(), d.data.mode === 'team' ? i.user.id : null);
+      this.drafts.remove(d.id);
+      await this.sync(i.guild, t.id).catch(e => this.bot.log(e, 'Actualizar torneo; se reintentará'));
+    });
+    await this.bot.replyCard(i, this.receipt(d.data.tournament,
+      d.data.mode === 'solo' ? 'Ya estás registrado individualmente. Te avisaremos cuando se forme tu equipo.'
+        : `El equipo **${safe(d.data.teamName)}** quedó inscrito. Tú eres el líder y podrás cambiar su nombre.`));
+  }
   async verifyPlayers(guild, t, people, soloUser = null) {
     const checked = [], roleId = this.bot.store.settings(guild.id).tournamentClanRole;
     for (const raw of people) {
-      const p = validateEntrant(raw, t), matches = this.bot.store.profiles(guild.id).filter(x => embarkKey(x.embarkId) === embarkKey(p.embarkId));
+      if (!raw.user || soloUser && raw.user !== soloUser) throw new UserError('Cada participante debe estar vinculado a su usuario de Discord.');
+      const latest = await this.participant(guild, raw.user, raw.embarkId);
+      if (latest.embarkId && raw.embarkId && embarkKey(latest.embarkId) !== embarkKey(raw.embarkId)) throw new UserError('Un jugador cambió su Embark ID. Reabre la inscripción.');
+      const p = validateEntrant(latest, t), matches = this.bot.store.profiles(guild.id).filter(x => embarkKey(x.embarkId) === embarkKey(p.embarkId));
       if (matches.length > 1) throw new UserError(`${p.embarkId}: resuelve los perfiles duplicados antes de inscribirte.`);
       const profile = matches[0];
-      if (soloUser && profile && profile.user !== soloUser) throw new UserError('El perfil coincidente pertenece a otra persona.');
-      p.user = profile?.user ?? soloUser; p.profileMatched = Boolean(profile); p.clanVerified = false;
+      if (profile && profile.user !== raw.user) throw new UserError('El Embark ID pertenece al perfil de otra persona.');
+      p.user = raw.user; p.profileMatched = Boolean(profile); p.clanVerified = false;
       let member = p.user ? await fetchOrNull(() => guild.members.fetch({ user: p.user, force: true })) : null;
       if (p.user && !member) throw new UserError(`${p.embarkId}: el miembro vinculado ya no está en el servidor.`);
       if (t.access === 'clan') {
-        if (!profile || !roleId || !member?.roles.cache.has(roleId)) throw new UserError(`${p.embarkId}: necesitas perfil coincidente y rol VXTG asignado por un administrador.`);
+        if (!roleId || !member?.roles.cache.has(roleId)) throw new UserError(`${p.embarkId}: necesitas el rol VXTG asignado por un administrador.`);
         p.clanVerified = true;
       }
       checked.push(p);
@@ -232,6 +351,8 @@ export class Tournaments {
   async ensureText(guild, t, field, prefix) {
     let channel = t[field] ? await fetchOrNull(() => guild.channels.fetch(t[field])) : null;
     const marker = `VEX tournament:${t.id}:${field}`;
+    const slug = t.name.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 42) || 'torneo';
+    const channelName = `${prefix}-${slug}-${t.id.slice(0, 4)}`;
     if (!channel) {
       if (t[field]) {
         if (field === 'registrationChannel') { delete t.registrationMessage; delete t.voiceMessage; }
@@ -240,11 +361,12 @@ export class Tournaments {
       }
       channel = guild.channels.cache.find(c => c.topic === marker);
       if (!channel) {
-        const slug = t.name.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 42) || 'torneo';
-        channel = await guild.channels.create({ name: `${prefix}-${slug}-${t.id.slice(0, 4)}`, type: ChannelType.GuildText, topic: marker, permissionOverwrites: this.textPermissions(guild), reason: `Torneo ${t.id}` });
+        channel = await guild.channels.create({ name: channelName, type: ChannelType.GuildText, parent: t.categoryChannel, topic: marker, permissionOverwrites: this.textPermissions(guild), reason: `Torneo ${t.id}` });
       }
       t[field] = channel.id; this.store.save(t);
     }
+    if (channel.topic === marker && channel.name !== channelName) await channel.setName(channelName, `Actualizar nombre del torneo ${t.id}`);
+    if (t.categoryChannel && channel.parentId !== t.categoryChannel) await channel.setParent(t.categoryChannel, { lockPermissions: false, reason: `Agrupar canales del torneo ${t.id}` });
     return channel;
   }
   async upsertMessage(channel, holder, field, key, payload, save, edit = true) {
@@ -272,7 +394,8 @@ export class Tournaments {
     // Delete overdue channels before rendering or fetching announcement messages. A failed
     // poster/announcement update must never prevent an expired tournament from being cleaned up.
     if (t.status === 'finished' && !t.channelsDeletedAt && t.deleteAt <= now) await this.cleanupChannels(guild, t, now);
-    if (t.posterVersion !== 3) t.dirty = true;
+    if (!t.channelsDeletedAt && (t.status === 'publishing' || tournamentPlayable(t) || t.status === 'finished')) await this.layout.ensure(guild, t);
+    if (t.posterVersion !== 5) t.dirty = true;
     const settings = this.bot.store.settings(guild.id);
     if (!settings.tournamentsChannel || !settings.tournamentClanRole) await this.setup(guild);
     if (t.status === 'publishing' || tournamentPlayable(t)) {
@@ -283,6 +406,13 @@ export class Tournaments {
       this.store.save(t);
     }
     const entries = this.store.entries(id), teams = this.store.teams(id), save = value => this.store.save(value);
+    for (const team of teams) if (!team.leader) {
+      const members = entries.filter(p => p.team === team.id && p.user);
+      const leader = team.source === 'balanced'
+        ? [...members].sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || a.created - b.created)[0]
+        : members[0];
+      if (leader) { team.leader = leader.user; this.store.saveTeam(team); }
+    }
     if (t.dirty || !t.announcementMessage || (t.registrationChannel && !t.registrationMessage)) {
       t.announcementChannel ??= this.bot.store.settings(guild.id).tournamentsChannel;
       const announcement = await fetchOrNull(() => guild.channels.fetch(t.announcementChannel));
@@ -300,14 +430,19 @@ export class Tournaments {
         if (role) registrationPanel.content = `<@&${role}>`;
         await this.upsertMessage(registration, t, 'registrationMessage', `registration:${id}`, registrationPanel, save);
       }
-      t.dirty = false; t.posterVersion = 3; save(t);
+      t.dirty = false; t.posterVersion = 5; save(t);
     }
     if (t.teamsChannel) {
       const channel = await fetchOrNull(() => guild.channels.fetch(t.teamsChannel));
-      if (channel) for (const team of teams) if (!team.message) {
+      if (channel) for (const team of teams) if (!team.message || team.cardVersion !== 2 || team.cardTournamentRevision !== (t.editRevision ?? 0)) {
         const people = entries.filter(p => p.team === team.id);
-        const payload = await this.graphic(teamPayload(t, team, people), 'tournament-team', { ...team, tournamentName: t.name, people });
-        await this.upsertMessage(channel, team, 'message', `team:${team.id}`, payload, value => this.store.saveTeam(value), false);
+        const roster = await Promise.all(people.map(async p => {
+          const member = p.user ? await fetchOrNull(() => guild.members.fetch(p.user)) : null;
+          return { ...p, discordName: member?.displayName ?? member?.user?.username ?? p.displayName ?? p.user ?? 'Sin vincular' };
+        }));
+        const payload = await this.graphic(teamPayload(t, team, roster, !team.message), 'tournament-team', { ...team, tournamentName: t.name, people: roster });
+        await this.upsertMessage(channel, team, 'message', `team:${team.id}`, payload, value => this.store.saveTeam(value));
+        team.cardVersion = 2; team.cardTournamentRevision = t.editRevision ?? 0; this.store.saveTeam(team);
       }
     }
     if (tournamentPlayable(t)) {
@@ -319,6 +454,9 @@ export class Tournaments {
     let channel = holder.voiceChannel ? await fetchOrNull(() => guild.channels.fetch(holder.voiceChannel)) : null;
     const save = () => holder === t ? this.store.save(t) : this.store.saveTeam(holder);
     const roomName = `${name.slice(0, 75)} · ${holder.id.slice(0, 8)}`;
+    if (channel && channel.name !== roomName && channel.name.endsWith(` · ${holder.id.slice(0, 8)}`)) {
+      await channel.setName(roomName, `Actualizar nombre de la sala del torneo ${t.id}`);
+    }
     let voiceRole;
     if (general) {
       voiceRole = t.voiceRole ? await fetchOrNull(() => guild.roles.fetch(t.voiceRole)) : null;
@@ -340,9 +478,10 @@ export class Tournaments {
         // Participant role avoids Discord's per-channel overwrite limit on large open tournaments.
         permissions.push({ id: voiceRole.id, type: 0, allow: [P.ViewChannel, P.Connect, P.Speak] });
       } else for (const user of new Set(people.map(p => p.user).filter(Boolean))) permissions.push({ id: user, type: 1, allow: [P.ViewChannel, P.Connect, P.Speak] });
-      if (!channel) channel = await guild.channels.create({ name: roomName, type: ChannelType.GuildVoice, userLimit: general ? 0 : 3, permissionOverwrites: permissions, reason: `Voz de torneo ${t.id}` });
+      if (!channel) channel = await guild.channels.create({ name: roomName, type: ChannelType.GuildVoice, parent: await this.layout.voiceParent(guild, t), userLimit: general ? 0 : 3, permissionOverwrites: permissions, reason: `Voz de torneo ${t.id}` });
       holder.voiceChannel = channel.id; save();
     }
+    if (t.categoryChannel && !(t.categoryChannels ?? [t.categoryChannel]).includes(channel.parentId)) await channel.setParent(await this.layout.voiceParent(guild, t), { lockPermissions: false, reason: `Agrupar voz del torneo ${t.id}` });
     if (general && t.voiceRole) for (const p of people.filter(p => p.user)) {
       const member = await fetchOrNull(() => guild.members.fetch(p.user));
       if (member && !member.roles.cache.has(t.voiceRole)) await member.roles.add(t.voiceRole, 'Participante inscrito en torneo');
@@ -353,6 +492,7 @@ export class Tournaments {
     const t = this.event(id, guild.id), entries = this.store.entries(id), teams = this.store.teams(id);
     if (!tournamentPlayable(t)) throw new UserError('El torneo terminó o todavía no fue publicado.');
     if (byTeam && !teams.length) throw new UserError('Todavía no hay equipos formados.');
+    await this.layout.ensure(guild, t);
     t[byTeam ? 'voiceTeamsRequested' : 'voiceGeneralRequested'] = true;
     this.store.save(t);
     const targets = byTeam ? teams : [t]; let moved = 0, disconnected = 0, unlinked = 0, failed = 0;
@@ -421,6 +561,7 @@ export class Tournaments {
       else for (const team of this.store.teams(t.id)) { delete team.message; this.store.saveTeam(team); }
       this.store.save(t);
     }
+    await this.layout.removeEmpty(guild, t);
     t.channelsDeletedAt = now; t.dirty = true; this.store.save(t);
   }
   async tick(guild) {

@@ -10,4 +10,4 @@ for (const s of sponsors) {
   await sharp(fileURLToPath(source), { density: 144 }).trim().resize({ width: 600, height: 240, fit: 'inside' }).png()
     .toFile(fileURLToPath(new URL(`${s.id}.png`, destination)));
 }
-console.log('11 logos preparados, sin modificar los originales.');
+console.log(`${sponsors.length} logos preparados, sin modificar los originales.`);

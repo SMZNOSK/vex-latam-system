@@ -1,9 +1,9 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-title VEX LATAM SYSTEM - Inicio del bot
+title VEX LATAM SYSTEM V1 - Inicio del bot
 cd /d "%~dp0"
 if errorlevel 1 goto :error
-echo VEX LATAM SYSTEM - Preparacion e inicio
+echo VEX LATAM SYSTEM V1 - Preparacion e inicio
 echo.
 where node >nul 2>nul
 if errorlevel 1 (
@@ -57,7 +57,7 @@ if errorlevel 1 (
   echo No pude comprobar data\bot.lock. Deten el bot y revisa ese archivo.
   goto :error
 )
-echo [1/3] Comprobando paqueterias...
+echo [1/4] Comprobando paqueterias...
 call npm.cmd ls --depth=0 >nul 2>nul
 if errorlevel 1 goto :install
 node --input-type=module -e "await import('discord.js');await import('playwright');await import('sharp');" >nul 2>nul
@@ -79,19 +79,32 @@ if errorlevel 1 (
 )
 
 :browser
-echo [2/3] Comprobando navegador para las tarjetas...
+echo [2/4] Comprobando navegador para las tarjetas...
 node --env-file=.env scripts/prepare-browser.js
+if errorlevel 1 goto :error
+echo [3/4] Comprobando archivos de la V1...
+node scripts/check.js
+if errorlevel 1 goto :error
+if /I "%~1"=="--pruebas" (
+  node --env-file=.env scripts/start.js --test --check
+) else (
+  node --env-file=.env scripts/start.js --check
+)
 if errorlevel 1 goto :error
 if /I "%~1"=="--preparar" (
   echo Preparacion completada. No se inicio el bot.
   pause
   exit /b 0
 )
-echo [3/3] Conectando el bot a Discord...
+echo [4/4] Conectando el bot a Discord...
 echo Deja esta ventana abierta. Ctrl+C permite detener el bot.
 echo Usa una sola laptop para ejecutar este bot.
 echo.
-call npm.cmd start
+if /I "%~1"=="--pruebas" (
+  call npm.cmd run start:test
+) else (
+  call npm.cmd start
+)
 if errorlevel 1 goto :error
 pause
 exit /b 0

@@ -2,11 +2,13 @@ import { PermissionFlagsBits as P, MessageType, EmbedBuilder } from 'discord.js'
 import { contentIntent } from './config.js';
 import { UserError } from './domain.js';
 import { assertAssignable } from './roles.js';
+import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 import { parseEmoji } from './reaction-roles.js';
 import { ALL_CLASSES, classes } from './catalog.js';
 import { noMentions, safe, row, button } from './ui.js';
 
 const normalize = text => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+export const chatSourceMatches = (cfg, channel) => (cfg?.channels?.length ? cfg.channels : [cfg?.channel]).includes(channel);
 // Las citas, ejemplos de código, enlaces y menciones no son solicitudes del autor.
 export const searchText = text => normalize(String(text ?? '').replace(/^\s*>>>[\s\S]*/m, ' ').replace(/```[\s\S]*?```|`[^`]*`|^\s*>.*$/gm, ' ')
   .replace(/https?:\/\/\S+|<[^>]+>/g, ' ').replace(/[^\p{L}\p{N}+\s]/gu, ' ').replace(/\s+/g, ' ').trim());
@@ -23,7 +25,7 @@ export function parseChatSearchTerms(input) {
   if (text === '-') return [];
   if (text.length > 1000) throw new UserError('La lista admite hasta 1000 caracteres.');
   const terms = [], seen = new Set();
-  for (const term of text.split(',').map(item => item.trim()).filter(Boolean)) {
+  for (const term of text.split(/[,\r\n]+/u).map(item => item.trim()).filter(Boolean)) {
     const key = keywordText(term);
     if (term.length > 80 || !/[\p{L}\p{N}]/u.test(key)) throw new UserError('Usa palabras o frases de hasta 80 caracteres; también se admiten expresiones como +1.');
     if (seen.has(key)) continue;
@@ -83,12 +85,11 @@ export class ChatSearch {
       const me = await guild.members.fetchMe();
       for (const [key, name, emoji] of [['rankedRole', 'THE FINALS RANKS', '🏆'], ['quickRole', 'THE FINALS RÁPIDAS', '⚡']]) {
         settings = this.bot.store.settings(guild.id);
-        let role = guild.roles.cache.get(settings.chatSearch[key])
+        let role = boundRole(guild, `chatSearch.${key}`) ?? guild.roles.cache.get(settings.chatSearch[key])
           ?? guild.roles.cache.find(r => normalize(r.name) === normalize(name) && !r.managed && r.permissions.bitfield === 0n);
-        if (!role) role = await guild.roles.create({ name, permissions: [], mentionable: true, reason: 'Roles para búsquedas de equipo por chat' });
+        if (!role) { assertPermanentRoleCreation(guild, name); role = await guild.roles.create({ name, permissions: [], mentionable: true, reason: 'Roles para búsquedas de equipo por chat' }); }
         assertAssignable(role, me);
         if (role.permissions.bitfield !== 0n) throw new UserError('Los roles de búsqueda por chat deben estar sin permisos.');
-        if (!role.mentionable) await role.setMentionable(true, 'Permitir que los jugadores etiqueten su modo');
         settings = this.bot.store.settings(guild.id);
         settings.chatSearch[key] = role.id;
         settings.roles ??= [];
@@ -109,13 +110,13 @@ export class ChatSearch {
       || message.messageSnapshots?.size || ![MessageType.Default, MessageType.Reply].includes(message.type)) return;
     return this.bot.queue(`chat-search:${message.guildId}`, async () => {
       const settings = this.bot.store.settings(message.guildId), cfg = settings.chatSearch;
-      if (!cfg?.enabled || message.channelId !== cfg.channel || !lookingForTeam(message.content, cfg.terms)) return;
+      if (!cfg?.enabled || !chatSourceMatches(cfg,message.channelId) || !lookingForTeam(message.content, cfg.terms)) return;
       const now = Date.now();
       const me = await message.guild.members.fetchMe();
       if (!message.channel.permissionsFor(me)?.has([P.ViewChannel, P.SendMessages, P.ReadMessageHistory])) return;
       // Una orden de desactivar o cambiar palabras durante la consulta también debe respetarse.
       const current = this.bot.store.settings(message.guildId), currentCfg = current.chatSearch;
-      if (!currentCfg?.enabled || currentCfg.channel !== message.channelId || !lookingForTeam(message.content, currentCfg.terms)) return;
+      if (!currentCfg?.enabled || !chatSourceMatches(currentCfg,message.channelId) || !lookingForTeam(message.content, currentCfg.terms)) return;
       const payload = chatSearchPayload(message, current);
       if (!payload) return;
       const existing = this.bot.store.activeSearch(message.guildId, message.author.id);
@@ -131,7 +132,7 @@ export class ChatSearch {
           reply: payload.reply,
           beforeSend: () => {
             const latest = this.bot.store.settings(message.guildId), live = latest.chatSearch;
-            return live?.enabled && live.channel === message.channelId && lookingForTeam(message.content, live.terms)
+            return live?.enabled && chatSourceMatches(live,message.channelId) && lookingForTeam(message.content, live.terms)
               && chatSearchPayload(message, latest)?.content === payload.content;
           },
         });
@@ -180,7 +181,7 @@ export class ChatSearch {
     }
     if (sub === 'restablecer') delete cfg.terms;
     if (sub === 'configurar') {
-      if (target) cfg.channel = target.id;
+      if (target) {cfg.channel = target.id; cfg.channels = [target.id];}
       const cooldown = i.options.getInteger('espera');
       if (cooldown != null) cfg.cooldownSeconds = cooldown;
       Object.assign(cfg, selected);

@@ -4,6 +4,8 @@ import { mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { UserError, compatible, migrateProfile, migrateFilters } from './domain.js';
 import { tournamentSchema } from './tournament-store.js';
+import { clanSchema } from './clan-store.js';
+import { applyProfileRS, recordRS, rsIdentity } from './profile-rs.js';
 
 export class Store {
   constructor(filename) {
@@ -32,12 +34,12 @@ export class Store {
   close() { this.db.close(); }
   async migrate() {
     const version = this.db.prepare('PRAGMA user_version').get().user_version;
-    if (version >= 5) return null;
+    if (version >= 9) return null;
     let snapshot = null;
     if (this.filename !== ':memory:') {
       const dir = path.join(path.dirname(this.filename), 'backups');
       mkdirSync(dir, { recursive: true });
-      snapshot = path.join(dir, `vex-before-v5-${Date.now()}.sqlite`);
+      snapshot = path.join(dir, `vex-before-v9-${Date.now()}.sqlite`);
       await backup(this.db, snapshot);
     }
     this.db.exec('BEGIN IMMEDIATE');
@@ -55,6 +57,11 @@ export class Store {
         data.filters = migrateFilters(data.filters);
         this.db.prepare('UPDATE searches SET data=? WHERE id=?').run(JSON.stringify(data), row.id);
       }
+      if(version<9)for(const row of this.db.prepare('SELECT guild,user,data FROM profiles').all()){
+        const p=JSON.parse(row.data);
+        p.peakScore=recordRS(p);p.peakRecordedAt??=p.rankUpdatedAt??p.updatedAt??Date.now();p.peakEmbarkKey=rsIdentity(p.embarkId);
+        this.db.prepare('UPDATE profiles SET data=? WHERE guild=? AND user=?').run(JSON.stringify(p),row.guild,row.user);
+      }
       this.db.exec(`CREATE TABLE IF NOT EXISTS managed_embeds (
         guild TEXT NOT NULL, name TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(guild,name));
         CREATE TABLE IF NOT EXISTS reaction_choices (
@@ -65,9 +72,14 @@ export class Store {
         CREATE TABLE IF NOT EXISTS welcome_events (
         guild TEXT NOT NULL, user TEXT NOT NULL, joined INTEGER NOT NULL, message TEXT NOT NULL,
         PRIMARY KEY(guild,user,joined));
+        CREATE TABLE IF NOT EXISTS farewell_events (
+        guild TEXT NOT NULL, user TEXT NOT NULL, joined INTEGER, departed INTEGER NOT NULL, message TEXT NOT NULL,
+        PRIMARY KEY(guild,user,message));
+        CREATE INDEX IF NOT EXISTS farewell_membership ON farewell_events(guild,user,joined);
         ${tournamentSchema}
-        PRAGMA user_version=5; COMMIT`);
-      this.schemaVersion = 5;
+        ${clanSchema}
+        PRAGMA user_version=9; COMMIT`);
+      this.schemaVersion = 9;
       return snapshot;
     } catch (error) { this.db.exec('ROLLBACK'); throw error; }
   }
@@ -115,6 +127,15 @@ export class Store {
   saveWelcome(guild, user, joined, message) {
     this.db.prepare('INSERT OR IGNORE INTO welcome_events VALUES (?,?,?,?)').run(guild, user, joined, message);
   }
+  farewelled(guild, user, joined, now = Date.now()) {
+    return Boolean(Number.isInteger(joined)
+      ? this.db.prepare('SELECT 1 FROM farewell_events WHERE guild=? AND user=? AND joined=?').get(guild, user, joined)
+      : this.db.prepare('SELECT 1 FROM farewell_events WHERE guild=? AND user=? AND departed>=?').get(guild, user, now - 60000));
+  }
+  saveFarewell(guild, user, joined, message, now = Date.now()) {
+    this.db.prepare('INSERT OR IGNORE INTO farewell_events VALUES (?,?,?,?,?)')
+      .run(guild, user, Number.isInteger(joined) ? joined : null, now, message);
+  }
   reactionChoice(guild, user, role) {
     if (this.schemaVersion < 3) return false;
     return Boolean(this.db.prepare('SELECT 1 FROM reaction_choices WHERE guild=? AND user=? AND role=?').get(guild, user, role));
@@ -157,7 +178,7 @@ export class Store {
   }
   saveProfile(guild, user, input) {
     const old = this.profile(guild, user);
-    const value = { searchable: true, ...old, ...input, updatedAt: Math.max(Date.now(), (old?.updatedAt ?? 0) + 1) };
+    const value = { searchable: true, ...applyProfileRS(old,input), updatedAt: Math.max(Date.now(), (old?.updatedAt ?? 0) + 1) };
     delete value.user;
     if (this.schemaVersion >= 2) this.db.exec('BEGIN IMMEDIATE');
     try {

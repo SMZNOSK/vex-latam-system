@@ -1,0 +1,50 @@
+{
+  "status": "v1-integrated-lifecycle-and-carl-reaction-pending",
+  "guildId": "1316232884117311558",
+  "guildName": "VΞX LΛTΛM SQUΛD",
+  "plannedOperatorUserIds": ["709461658602569758", "905678811255955517"],
+  "latestObservedBotRole": { "id": "1562574079419089037", "name": "BOTS", "missingPermission": "PinMessages" },
+  "auditFile": "data/server-audits/1316232884117311558.json",
+  "roleBindings": {
+    "finals": "1435343076120989707",
+    "clan.vxtg": "1386703912379220192",
+    "clan.vxltm": "1559814674558619668",
+    "chatSearch.rankedRole": "1536861782075773029",
+    "chatSearch.quickRole": "1559814240020463676"
+  },
+  "existingChannels": {
+    "welcome": "1401339483324153866",
+    "rules": "1401331560258474176",
+    "roleSelection": "1487560889065275433",
+    "tournamentAnnouncements": "1551375375701909514",
+    "clanInformation": "1534658508941955103",
+    "feedbackCandidate": "1561609370150764674",
+    "rankedChat": "1496746059664330832",
+    "quickChat": "1512713341959671931",
+    "cashoutChat": "1536576899445170309",
+    "tournamentRegistrationInformation": "1551375724781244486",
+    "tournamentScores": "1551376052671217824",
+    "tournamentStandings": "1551376123902824599"
+  },
+  "proposedNewCategories": ["ADMIN PANEL", "SISTEMA DEL BOT", "CLANES"],
+  "proposedNewChannels": {
+    "ADMIN PANEL": ["admin-bot", "buzon-feedback", "buzon-reportes", "solicitudes-clanes", "rankings-clanes"],
+    "SISTEMA DEL BOT": ["configurar-perfil", "buscar-equipo", "equipos-del-bot", "comandos-del-bot", "leaderboard"],
+    "CLANES": ["unete-a-vxtg", "unete-a-vxltm", "ranking-vxtg", "ranking-vxltm"],
+    "existingSocialCategory": ["reportes"],
+    "existingStartCategory": ["despedidas"]
+  },
+  "existingParents": { "social": "1561608946597363772", "start": "1401330667949920316" },
+  "newProfileRolesIfEnabled": ["Verificado", "OSPUZE", "ISEUL-T", "VOLPE", "HOLTOW", "VAIIYA", "ENGIMO", "DISSUN", "ALFA ACTA", "IVADA", "TRENTILA", "COMETA", "CNS"],
+  "requiredBeforeActivation": [
+    "Add PinMessages to the existing BOTS role and place that role above CLUB VXTG and below staff roles.",
+    "Restrict administrative operations to the requesting user and current server owner by user ID.",
+    "Resolve welcome and farewell overlap with Koya and Carl-bot.",
+    "Review Carl-bot clan reaction assignment before enabling approval flow.",
+    "Preserve existing rules, role panels, channel names, parent categories and unrelated permissions.",
+    "Track role grant ownership so external THE FINALS assignments survive profile deletion.",
+    "Support the existing feedback channel without renaming or moving it.",
+    "Support ranked and quick chat sources without locking existing chat channels.",
+    "Initialize production configuration independently of test profiles, tournaments and submissions."
+  ]
+}

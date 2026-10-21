@@ -25,7 +25,7 @@ export function cardAttachmentURL(value) {
 }
 
 export class PlayerCards {
-  constructor(directory, fetcher = fetch) { this.directory = path.resolve(directory); this.fetcher = fetcher; this.cache = new Map(); }
+  constructor(directory, fetcher = fetch, { maxWidth=600, maxHeight=1000 } = {}) { this.directory = path.resolve(directory); this.fetcher = fetcher; this.cache = new Map(); this.maxWidth=maxWidth; this.maxHeight=maxHeight; }
   filename(key) {
     if (!validKey(key)) throw new UserError('La referencia a la tarjeta no es válida.');
     return path.join(this.directory, `${key}.png`);
@@ -65,7 +65,7 @@ export class PlayerCards {
       const image = sharp(buffer, { limitInputPixels: 20000000, failOn: 'error' });
       const metadata = await image.metadata();
       if (!['png', 'jpeg', 'webp'].includes(metadata.format) || (metadata.pages ?? 1) > 1) throw new Error('Formato no admitido');
-      output = await image.rotate().resize({ width: 600, height: 1000, fit: 'inside', withoutEnlargement: true })
+      output = await image.rotate().resize({ width: this.maxWidth, height: this.maxHeight, fit: 'inside', withoutEnlargement: true })
         .png().toBuffer({ resolveWithObject: true });
     } catch { throw new UserError('No pude leer la imagen. Sube una tarjeta PNG, JPG o WebP estática de hasta 20 megapíxeles.'); }
     if (output.data.length > MAX_STORED_BYTES) throw new UserError('La tarjeta es demasiado grande. Usa una imagen más pequeña.');

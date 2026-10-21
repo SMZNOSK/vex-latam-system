@@ -31,7 +31,20 @@ export const defaultWelcome = {
     { name: '🎮 Juegos de la comunidad', value: '🔺 THE FINALS · Nuestro juego principal.\n🪖 HELLDIVERS 2 · Forma tu escuadra y entra a la acción.\n🤖 ARC RAIDERS · Encuentra compañeros y disfruta tus partidas.' },
     { name: '🤝 ¿Qué encontrarás aquí?', value: 'Gente para jugar · Nuevos compañeros · Squads · Torneos y eventos · Comunidad LATAM' },
     { name: '🚀 Empieza aquí', value: '📜 Lee las reglas: {reglas}\n🎭 Elige tus juegos: {roles}\n🏆 Encuentra equipo con VLS Find Squad: {buscar}' },
+    { name: '🏆 Encuentra tu clan', value: 'Primero completa tu perfil: {perfil}\nVXTG · Competitivo, Oro o superior: {clan_vxtg}\nVXLTM · Comunidad, cualquier RS: {clan_vxltm}\nSolo puedes pertenecer a uno. La solicitud requiere una captura.' },
   ],
+};
+export const defaultFarewell = {
+  title: 'Hasta pronto, {usuario}', color: '#e3273e', image: '', fields: [],
+  description: 'Gracias por compartir partida en {servidor}.\nTe deseamos un equipo a tu altura. El nuestro seguirá creciendo.',
+};
+export const rudeFarewell = {
+  title: 'Bye bye, {usuario}', color: '#e3273e', image: '', fields: [],
+  description: 'A chingar a su madre. 👋\nEl proyecto sigue. GGs.',
+};
+export const legacyFarewell = {
+  title: 'Hasta pronto, {usuario}', color: '#e3273e', image: '', fields: [],
+  description: 'Gracias por ser parte de {servidor}. Que la próxima partida nos vuelva a juntar.',
 };
 
 export function validateEmbed(input) {
@@ -77,8 +90,8 @@ export function embedModal(draft) {
   };
   return new ModalBuilder().setCustomId(`community:save:${draft.id}`).setTitle('Editar embed · VEX LATAM')
     .addLabelComponents(textLabel('title', 'Título', input.title, true, 256),
-      paragraph('description', 'Descripción', input.description, 4000, 'En bienvenida: {usuario}, {servidor}, {reglas}, {roles}, {buscar}.'),
-      paragraph('fields', 'Secciones: Título | Contenido', formatFields(input.fields), 4000, 'Una sección por línea. Usa \\n para saltos y [] delante del título para mostrarla en columna.'),
+      paragraph('description', 'Descripción · Admite emojis :nombre:', input.description, 4000, 'Emojis: /embed emojis. Bienvenida/despedida: {usuario}, {servidor}, {reglas}, {roles}, {buscar}.'),
+      paragraph('fields', 'Secciones: Título | Contenido', formatFields(input.fields), 4000, 'Una sección por línea. Usa :nombre: para emojis, \\n para saltos y [] para columnas.'),
       textLabel('color', 'Color hexadecimal', input.color || '#ed243b', true, 7),
       textLabel('image', 'URL HTTPS de imagen · Opcional', input.image, false, 1000));
 }
@@ -106,10 +119,13 @@ export function rulesPayload(settings) {
 }
 export function welcomePayload(member, settings) {
   const replacements = { usuario: `<@${member.id}>`, servidor: safe(member.guild.name),
+    perfil: settings.panels?.registro ? `<#${settings.panels.registro.channel}>` : '#configurar-perfil',
+    clan_vxtg: settings.clans?.vxtg?.joinChannel ? `<#${settings.clans.vxtg.joinChannel}>` : '#unete-a-vxtg',
+    clan_vxltm: settings.clans?.vxltm?.joinChannel ? `<#${settings.clans.vxltm.joinChannel}>` : '#unete-a-vxltm',
     reglas: settings.panels?.reglas ? `<#${settings.panels.reglas.channel}>` : '#reglas',
     roles: settings.panels?.roles ? `<#${settings.panels.roles.channel}>` : '#seleccion-de-roles',
     buscar: settings.panels?.buscar ? `<#${settings.panels.buscar.channel}>` : '#buscar-equipo' };
-  const replace = text => String(text).replace(/\{(usuario|servidor|reglas|roles|buscar)\}/g, (_, key) => replacements[key]);
+  const replace = text => String(text).replace(/\{(usuario|servidor|reglas|roles|buscar|perfil|clan_vxtg|clan_vxltm)\}/g, (_, key) => replacements[key]);
   const template = settings.community?.welcome ?? defaultWelcome;
   const payload = nativePayload({ ...template, title: replace(template.title), description: replace(template.description),
     fields: template.fields.map(f => ({ ...f, name: replace(f.name), value: replace(f.value) })) });
@@ -118,4 +134,16 @@ export function welcomePayload(member, settings) {
     .setLabel('Crear / editar mi perfil').setStyle(ButtonStyle.Primary))];
   payload.allowedMentions = { ...noMentions, users: [member.id] };
   return payload;
+}
+
+export function farewellPayload(member, settings) {
+  const name = member.displayName ?? member.user?.globalName ?? member.user?.username ?? 'Jugador';
+  const values = { usuario: safe(name), servidor: safe(member.guild.name),
+    reglas: settings.panels?.reglas ? `<#${settings.panels.reglas.channel}>` : '#reglas',
+    roles: settings.panels?.roles ? `<#${settings.panels.roles.channel}>` : '#seleccion-de-roles',
+    buscar: settings.panels?.buscar ? `<#${settings.panels.buscar.channel}>` : '#buscar-equipo' };
+  const replace = text => String(text).replace(/\{(usuario|servidor|reglas|roles|buscar)\}/g, (_, key) => values[key]);
+  const template = settings.community?.farewell ?? defaultFarewell;
+  return nativePayload({ ...template, title: replace(template.title), description: replace(template.description),
+    fields: template.fields.map(f => ({ ...f, name: replace(f.name), value: replace(f.value) })) });
 }

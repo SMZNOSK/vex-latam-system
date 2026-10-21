@@ -6,3 +6,5 @@ data/
 logs/
 *.log
 *.msi
+.codex-remote-attachments/
+design/welcome-emojis/

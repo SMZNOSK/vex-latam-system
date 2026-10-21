@@ -27,6 +27,7 @@ export class ReactionRoles {
     if (settings.panels?.roles?.message !== message.id) return;
     const map = (settings.roles ?? []).find(r => r.emojiKey === emojiKey(reaction.emoji));
     if (!map) return;
+    if([settings.clans?.vxtg?.role,settings.clans?.vxltm?.role].includes(map.id))return;
     this.versions.set(`${guild.id}:${map.id}:${user.id}`, ++this.sequence);
     await this.bot.queue(`member-role:${guild.id}:${user.id}`, async () => {
       const current = this.bot.store.settings(guild.id);
@@ -40,6 +41,7 @@ export class ReactionRoles {
       try {
         const role = await guild.roles.fetch(job.role), me = await guild.members.fetchMe();
         const identity = this.bot.store.settings(guild.id);
+        if([identity.clans?.vxtg?.role,identity.clans?.vxltm?.role].includes(job.role)){this.bot.store.finishReactionJob(guild.id,job.user,job.role);return;}
         if ([identity.verifiedRole, ...Object.values(identity.sponsorRoles ?? {})].includes(job.role)) {
           this.bot.store.finishReactionJob(guild.id, job.user, job.role);
           this.bot.store.queueRole(guild.id, job.user);
@@ -77,7 +79,7 @@ export class ReactionRoles {
   }
   async sync(guild) {
     const settings = this.bot.store.settings(guild.id), ref = settings.panels?.roles;
-    if (!ref) return;
+    if (!ref?.message || settings.community?.externalPanels?.includes('roles')) return;
     const channel = await guild.channels.fetch(ref.channel), message = await channel.messages.fetch(ref.message);
     for (const map of settings.roles.filter(r => r.emoji)) {
       const snapshot = this.sequence;

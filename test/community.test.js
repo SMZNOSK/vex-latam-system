@@ -8,11 +8,13 @@ import { Store } from '../src/store.js';
 import { VexBot } from '../src/bot.js';
 import { Community } from '../src/community.js';
 import { Drafts } from '../src/drafts.js';
-import { defaultRules, defaultWelcome, embedModal, nativePayload, validateEmbed, parseFields, formatFields, welcomePayload } from '../src/community-ui.js';
+import { defaultRules, defaultWelcome, defaultFarewell, legacyFarewell, embedModal, nativePayload, validateEmbed, parseFields, formatFields, welcomePayload } from '../src/community-ui.js';
 import { parseEmoji, emojiKey } from '../src/reaction-roles.js';
 import { hasMembersIntent } from '../src/gateway-config.js';
 import { processRoleJobs } from '../src/setup.js';
 import { UserError } from '../src/domain.js';
+import { config } from '../src/config.js';
+config.roleCreationApprovedGuilds.g=['HELLDIVERS 2','ARC RAIDERS'];
 
 const missing = code => Object.assign(new Error('missing'), { code });
 async function fixture() {
@@ -77,13 +79,13 @@ async function fixture() {
   return { bot, store, guild, channel, member, me, role, channels, roles };
 }
 function command(guild, sub, extra = {}) {
-  const i = { guild, guildId: guild.id, user: { id: 'admin' }, commandName: 'embed', memberPermissions: new PermissionsBitField(P.ManageGuild),
+  const i = { guild, guildId: guild.id, user: { id: 'admin' }, commandName: 'embed', memberPermissions: new PermissionsBitField(P.Administrator),
     options: { getSubcommand: () => sub, getString: () => extra.name ?? 'evento', getChannel: () => extra.channel ?? null },
     showModal: async modal => { i.shown = modal.toJSON(); }, ...extra };
   return i;
 }
 const submitted = (guild, modal, values = {}, user = 'admin') => ({ guild, guildId: guild.id, user: { id: user },
-  memberPermissions: new PermissionsBitField(P.ManageGuild), customId: modal.custom_id,
+  memberPermissions: new PermissionsBitField(P.Administrator), customId: modal.custom_id,
   fields: { getTextInputValue: id => values[id] ?? ({ title: 'Evento de la comunidad', description: 'Una invitación', fields: '', color: '#ed243b', image: '' })[id] } });
 
 test('embeds nativos, formularios completos, secciones y límites; no habilitan menciones masivas', () => {
@@ -104,11 +106,11 @@ test('embeds nativos, formularios completos, secciones y límites; no habilitan 
   assert.equal(hasMembersIntent(0), false); assert.equal(hasMembersIntent(1 << 15), true); assert.equal(hasMembersIntent(1 << 14), true);
 });
 
-test('prepara tres canales públicos, staff, reacciones y dos paneles fijados; reiniciar no duplica', async () => {
+test('prepara cuatro canales públicos, staff, reacciones y dos paneles fijados; reiniciar no duplica', async () => {
   const { bot, guild, store, channels } = await fixture();
   try {
     await bot.community.setup(guild);
-    assert.deepEqual([...channels.values()].map(c => c.name), ['bienvenidos', 'reglas', 'seleccion-de-roles']);
+    assert.deepEqual([...channels.values()].map(c => c.name), ['bienvenidos', 'despedidas', 'reglas', 'seleccion-de-roles']);
     const initial = store.settings('g');
     assert.equal(initial.roles.length, 3);
     for (const channel of channels.values()) {
@@ -123,7 +125,7 @@ test('prepara tres canales públicos, staff, reacciones y dos paneles fijados; r
     assert.equal(roleChannel.messages.cache.first().payload.components.length, 0);
     bot.community = new Community(bot); await bot.community.setup(guild);
     assert.deepEqual(store.settings('g').panels, initial.panels);
-    assert.equal(channels.size, 3); assert.equal([...channels.values()].reduce((n,c) => n+c.sent, 0), 2);
+    assert.equal(channels.size, 4); assert.equal([...channels.values()].reduce((n,c) => n+c.sent, 0), 2);
   } finally { store.close(); }
 });
 
@@ -230,6 +232,86 @@ test('bienvenida solo al nuevo miembro, enlaces, deduplicación por entrada, apa
     await bot.community.welcome(u); assert.equal(c.sent, 2);
     assert.equal(welcomePayload(u, settings).content, '<@new>');
   } finally { store.close(); }
+});
+
+test('tarjetas de entrada y salida adjuntan PNG; despedida no menciona ni avisa al usuario', async () => {
+  const { bot, guild, store, member, channels } = await fixture();
+  try {
+    await bot.community.setup(guild);
+    const rendered = []; bot.memberCards = { render: async (kind, m) => { rendered.push([kind, m.id]); return Buffer.from('png'); } };
+    const u = member('new'); await bot.community.welcome(u);
+    const welcome = channels.get(store.settings('g').community.welcomeChannel).messages.cache.first().payload;
+    assert.equal(welcome.files[0].name, 'vex-welcome.png'); assert.equal(welcome.embeds[0].toJSON().image.url, 'attachment://vex-welcome.png');
+    assert.deepEqual(welcome.allowedMentions.users, ['new']);
+    await Promise.all([bot.community.farewell(u), bot.community.farewell(u)]);
+    const channel = channels.get(store.settings('g').community.farewellChannel), farewell = channel.messages.cache.first().payload;
+    assert.equal(channel.sent, 1); assert.equal(farewell.files[0].name, 'vex-farewell.png');
+    assert.deepEqual(farewell.allowedMentions.users, []); assert.deepEqual(farewell.allowedMentions.parse, []);
+    assert.equal(farewell.components.length, 0); assert.deepEqual(rendered, [['welcome', 'new'], ['farewell', 'new']]);
+    bot.community = new Community(bot); await bot.community.farewell(u); assert.equal(channel.sent, 1);
+    u.joinedTimestamp++; await bot.community.farewell(u); assert.equal(channel.sent, 2);
+  } finally { store.close(); }
+});
+
+test('salidas parciales, bots, otro servidor y despedidas desactivadas respetan controles', async () => {
+  const { bot, guild, store, member, channels } = await fixture();
+  try {
+    await bot.community.setup(guild);
+    const c = channels.get(store.settings('g').community.farewellChannel), u = member('gone');
+    u.joinedTimestamp = null; await bot.community.farewell(u); await bot.community.farewell(u); assert.equal(c.sent, 1);
+    bot.membersIntent = false; await bot.community.farewell(member('no-intent')); assert.equal(c.sent, 1); bot.membersIntent = true;
+    const automatic = member('bot'); automatic.user.bot = true; await bot.community.farewell(automatic); assert.equal(c.sent, 1);
+    await bot.community.farewell({ id: 'outside', guild: { id: 'other' }, user: {} }); assert.equal(c.sent, 1);
+    const settings = store.settings('g'); settings.community.farewellEnabled = false; store.saveSettings('g', settings);
+    await bot.community.farewell(member('disabled')); assert.equal(c.sent, 1);
+  } finally { store.close(); }
+});
+
+test('fallo de renderizado o Adjuntar archivos mantiene el mensaje nativo y su deduplicación', async () => {
+  const { bot, guild, store, member, channels } = await fixture();
+  try {
+    await bot.community.setup(guild);
+    bot.memberCards = { render: async () => { throw new Error('browser unavailable'); } };
+    await bot.community.welcome(member('fallback'));
+    const c = channels.get(store.settings('g').community.welcomeChannel); assert.equal(c.messages.cache.first().payload.files, undefined);
+    bot.memberCards = { render: async () => Buffer.from('png') };
+    const farewell = channels.get(store.settings('g').community.farewellChannel), original = farewell.send;
+    let rejected = 0;
+    farewell.send = async p => { if (p.files) { rejected++; throw missing(50013); } return original(p); };
+    const u = member('no-attachment'); await bot.community.farewell(u); await bot.community.farewell(u);
+    assert.equal(rejected, 1); assert.equal(farewell.sent, 1);
+    assert.equal(farewell.messages.cache.first().payload.embeds[0].toJSON().image, undefined);
+    assert.ok(store.farewelled('g', u.id, u.joinedTimestamp));
+  } finally { store.close(); }
+});
+
+test('probar despedida es privado y editar/activar/desactivar no publica salidas sintéticas', async () => {
+  const { bot, guild, store, member, channels } = await fixture();
+  try {
+    await bot.community.setup(guild); member('admin');
+    bot.memberCards = { render: async () => Buffer.from('png') };
+    const i = command(guild, 'probar', { commandName: 'despedida', deferReply: async p => { i.deferredPayload = p; }, editReply: async p => { i.privatePayload = p; return { id: 'preview' }; } });
+    await bot.community.command(i); assert.equal(i.deferredPayload.flags, MessageFlags.Ephemeral);
+    assert.equal(i.privatePayload.files[0].name, 'vex-farewell.png');
+    const c = channels.get(store.settings('g').community.farewellChannel); assert.equal(c.sent, 0);
+    for (const sub of ['desactivar', 'activar']) {
+      await bot.community.command(command(guild, sub, { commandName: 'despedida', deferReply: async () => {} }));
+      assert.equal(store.settings('g').community.farewellEnabled, sub === 'activar');
+    }
+    const edit = command(guild, 'editar', { commandName: 'despedida' }); await bot.community.command(edit);
+    await bot.community.handle(submitted(guild, edit.shown, { title: 'Nos vemos, {usuario}', description: 'GG en {servidor}.' }));
+    assert.equal(store.settings('g').community.farewell.title, 'Nos vemos, {usuario}'); assert.equal(c.sent, 0);
+  } finally { store.close(); }
+});
+
+test('actualiza la despedida predeterminada a carrilla y conserva textos personalizados', async () => {
+  const f = await fixture();
+  try {
+    let settings = f.store.settings('g'); settings.community = { farewell: structuredClone(legacyFarewell) }; f.store.saveSettings('g', settings);
+    await f.bot.community.setup(f.guild); assert.deepEqual(f.store.settings('g').community.farewell, defaultFarewell);
+    settings = f.store.settings('g'); settings.community.farewell.description = 'Mi despedida personalizada'; f.store.saveSettings('g', settings);
+    await f.bot.community.setup(f.guild); assert.equal(f.store.settings('g').community.farewell.description, 'Mi despedida personalizada');
+  } finally { f.store.close(); }
 });
 
 test('editor crea, edita el mismo mensaje, rechaza ediciones concurrentes/ajenas y retira solo su tarjeta', async () => {

@@ -1,14 +1,25 @@
 import { Drafts } from './drafts.js';
 import { ALL_CLASSES, classes, classChoices, pruneSkills, selectedClasses, classLabel } from './catalog.js';
 import { UserError, score, rankFromRS, validateIdentity, validateProfile, validateSearch } from './domain.js';
-import { card, profileModal, withImage } from './ui.js';
+import { card, profileModal, withImage, row, button, safe } from './ui.js';
 import { draftId, profileDraftPayload, profilePrivatePayload, searchDraftPayload, skillsModal,
-  rangeModal, descriptionModal, teamPrivatePayload, teamSelector, playerCardModal } from './wizard-ui.js';
+  rangeModal, descriptionModal, teamPrivatePayload, teamSelector, playerCardModal, rsModal } from './wizard-ui.js';
 import { processRoleJobs } from './setup.js';
-import { getSponsor } from './sponsors.js';
+import { getSponsor, completeProfile } from './sponsors.js';
+import { applyProfileRS, currentRS, recordRS, rsIdentity } from './profile-rs.js';
 
 export class Workflows {
   constructor(bot) { this.bot = bot; this.drafts = new Drafts(); }
+  pendingIdentity(guild,user){
+    this.drafts.expire();const saved=this.bot.store.profile(guild,user);
+    return [...this.drafts.items.values()].find(d=>d.kind==='profile'&&d.guild===guild&&d.user===user&&d.data.embarkId
+      &&(rsIdentity(d.data.embarkId)!==rsIdentity(saved?.embarkId)||d.data.score!==saved?.score));
+  }
+  assertProfileSaved(guild,user){
+    const pending=this.pendingIdentity(guild,user);if(!pending)return;
+    const saved=this.bot.store.profile(guild,user);
+    throw new UserError(`Tienes cambios de perfil **sin guardar**: ${safe(pending.data.embarkId)} · **${pending.data.score.toLocaleString('es-MX')} RS actuales**. El perfil guardado todavía tiene **${currentRS(saved)?.toLocaleString('es-MX')??'ningún'} RS**. Abre /perfil → Continuar cambios y pulsa Guardar cambios, o usa Actualizar RS. Después solicita el ingreso de nuevo.`);
+  }
   startProfile(i) {
     const p = this.bot.store.profile(i.guildId, i.user.id);
     const data = { ...(p ?? {}), playerClass: p?.playerClass ?? 'Ligero', specializationIds: p?.specializationIds ?? [] };
@@ -19,7 +30,11 @@ export class Workflows {
   async profile(i, notice = '') {
     const p = this.bot.requireProfile(i);
     await this.bot.ackCard(i);
-    return this.bot.replyCard(i, await withImage(profilePrivatePayload(p, notice), this.bot.renderer, 'profile', await this.bot.visualProfile(p)));
+    const pending=this.pendingIdentity(i.guildId,i.user.id);
+    if(pending)notice+=`${notice?'\n\n':''}⚠ Tienes cambios sin guardar (${pending.data.score.toLocaleString('es-MX')} RS). Esta ficha muestra los datos **guardados**. Pulsa Continuar cambios para confirmarlos.`;
+    const payload=profilePrivatePayload(p,notice);
+    if(pending)payload.components[0].addActionRowComponents(row(button('profile:resume','Continuar cambios sin guardar')));
+    return this.bot.replyCard(i, await withImage(payload, this.bot.renderer, 'profile', await this.bot.visualProfile(p)));
   }
   async startSearch(i) {
     const existing = this.bot.store.activeSearch(i.guildId, i.user.id);
@@ -39,7 +54,7 @@ export class Workflows {
     return this.bot.queue(`draft-view:${d.id}`, async () => {
       let payload = d.kind === 'profile' ? profileDraftPayload(d) : searchDraftPayload(d);
       if (d.kind === 'profile' && d.step === 'review') {
-        const p = { ...d.data, rank: rankFromRS(d.data.score, d.data.leaderboardPosition) };
+        const p = applyProfileRS(d.base,d.data);
         payload = await withImage(payload, this.bot.renderer, 'profile', await this.bot.visualProfile(p));
       } else payload.attachments = [];
       return this.bot.replyCard(i, payload);
@@ -58,6 +73,14 @@ export class Workflows {
     const id = i.customId;
     if (id === 'profile:edit') { await this.startProfile(i); return true; }
     if (id === 'profile:view') { await this.profile(i); return true; }
+    if(id==='profile:resume'){
+      const d=this.pendingIdentity(i.guildId,i.user.id);if(!d)throw new UserError('Ya no hay cambios pendientes. Abre Editar perfil o Actualizar RS.');
+      await this.display(i,d);return true;
+    }
+    if(id==='profile:rs'){
+      const p=this.bot.requireProfile(i),d=this.drafts.create('profile-rs',i.guildId,i.user.id,{...p});d.base=p;
+      await i.showModal(rsModal(d));return true;
+    }
     if (id === 'profile:image') {
       const p = this.bot.requireProfile(i), d = this.drafts.create('photo', i.guildId, i.user.id, { ...p }); d.base = p;
       await i.showModal(playerCardModal(d)); return true;
@@ -83,6 +106,20 @@ export class Workflows {
     if (d.revision !== Number(revision)) throw new UserError('Este control pertenece a una versión anterior. Usa el asistente más reciente.');
     if (d.submitting) throw new UserError('Estamos guardando este borrador. Espera un momento.');
     const modal = i.isModalSubmit?.() === true;
+    if(action==='rs-submit'&&d.kind==='profile-rs'&&modal){
+      const points=score(i.fields.getTextInputValue('score'));d.submitting=true;await this.bot.ackCard(i);
+      try{
+        const current=this.bot.requireProfile(i);
+        if(current.updatedAt!==d.base.updatedAt||current.embarkId!==d.base.embarkId)throw new UserError('El perfil cambió mientras escribías tus RS. Abre Actualizar RS de nuevo.');
+        const p=this.bot.store.saveProfile(i.guildId,i.user.id,{score:points,rankSource:'manual',leaderboardPosition:null,season:null,rankUpdatedAt:Date.now()});
+        this.bot.tracker.forget(p.embarkId);
+        this.drafts.remove(d.id);
+        for(const [key,other] of this.drafts.items)if(other.kind==='profile'&&other.guild===i.guildId&&other.user===i.user.id)this.drafts.remove(key);
+        await this.bot.refreshMemberTeams(i.guildId,i.user.id);
+        await this.profile(i,`RS actual guardado: **${p.score.toLocaleString('es-MX')}**. Récord: **${recordRS(p).toLocaleString('es-MX')} RS**. Ya se usa el actual para las búsquedas y los requisitos de clan.`);
+      }finally{d.submitting=false;}
+      return true;
+    }
     if (action === 'photo-submit' && d.kind === 'photo' && modal) {
       const files = i.fields.getUploadedFiles('cardImage');
       if (files?.size > 1) throw new UserError('Adjunta una sola tarjeta del juego.');
@@ -176,7 +213,7 @@ export class Workflows {
     } else if (action === 'description-submit' && d.kind === 'search' && modal) {
       const candidate = { ...d.data, description: i.fields.getTextInputValue('description') };
       validateSearch(candidate); d.data = candidate;
-    } else if (action === 'save' && d.kind === 'profile' && d.step === 'review' && !modal) {
+    } else if (action === 'save' && d.kind === 'profile' && (d.step === 'review'||d.step==='class'&&completeProfile(d.base)) && !modal) {
       const profile = validateProfile(d.data), current = this.bot.store.profile(i.guildId, i.user.id);
       if (current?.updatedAt !== d.base?.updatedAt) throw new UserError('Tu perfil cambió durante el registro. Abre Editar perfil de nuevo.');
       d.submitting = true;
@@ -189,6 +226,7 @@ export class Workflows {
           leaderboardPosition: position, rankSource: same ? current.rankSource : 'manual',
           season: same ? current.season : null, rankUpdatedAt: same ? current.rankUpdatedAt : Date.now(), legacySpecialization: current?.legacySpecialization ?? '',
           cardImage: d.data.cardImage ?? null });
+        if(!same){this.bot.tracker.forget(p.embarkId);if(current?.embarkId&&current.embarkId!==p.embarkId)this.bot.tracker.forget(current.embarkId);}
         this.bot.store.queueRole(i.guildId, i.user.id);
         this.drafts.remove(d.id);
         await processRoleJobs(this.bot, i.guild);

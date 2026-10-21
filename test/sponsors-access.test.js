@@ -7,12 +7,14 @@ import { Collection, PermissionFlagsBits as P, PermissionsBitField, ChannelType 
 import { Store } from '../src/store.js';
 import { VexBot } from '../src/bot.js';
 import { AccessGate, originalPermissions } from '../src/access-gate.js';
-import { sponsors, sponsorLogo, completeProfile } from '../src/sponsors.js';
+import { sponsors, sponsorLogo, sponsorBackground, completeProfile } from '../src/sponsors.js';
 import { validateProfile } from '../src/domain.js';
 import { processRoleJobs } from '../src/setup.js';
 import { profileModal, searchPayload } from '../src/ui.js';
 import { welcomePayload } from '../src/community-ui.js';
 import { template } from '../src/renderer.js';
+import { config } from '../src/config.js';
+config.roleCreationApprovedGuilds.g=['Verificado',...sponsors.map(s=>s.label)];
 
 const profile = { embarkId: 'Jugador#1234', score: 34000, playerClass: 'Ligero', specializationIds: ['evasive_dash'], sponsorId: 'ospuze' };
 async function fixture() {
@@ -61,15 +63,18 @@ async function fixture() {
   return { bot, store, guild, roles, channels, member, channel, me };
 }
 
-test('once opciones obligatorias en el modal; recursos locales válidos y patrocinador estricto', () => {
+test('doce opciones obligatorias en el modal; recursos locales válidos y patrocinador estricto', () => {
   const modal = profileModal(profile).toJSON(); assert.equal(modal.components.length, 4);
   const select = modal.components.find(l => l.component.custom_id === 'sponsor').component;
-  assert.equal(select.required, true); assert.equal(select.max_values, 1); assert.equal(select.options.length, 11);
+  assert.equal(select.required, true); assert.equal(select.max_values, 1); assert.equal(select.options.length, 12);
+  assert.ok(select.options.some(o => o.value === 'cns' && o.label === 'CNS'));
   assert.equal(select.options.filter(o => o.default).length, 1);
   assert.equal(sponsors.some(s => s.label === 'MultiCo'), false);
   for (const s of sponsors) {
     assert.ok(sponsorLogo(s.id).startsWith('data:image/')); assert.equal(validateProfile({ ...profile, sponsorId: s.id }).sponsorId, s.id);
+    assert.ok(sponsorBackground(s.id).startsWith('data:image/webp;base64,'));
   }
+  assert.equal(sponsorBackground('../cns'), null);
   for (const sponsorId of [undefined, 'multico', '../ospuze', 'OSPUZE']) assert.throws(() => validateProfile({ ...profile, sponsorId }));
   assert.equal(completeProfile({ ...profile, needsCompletion: true }), false);
 });
@@ -81,6 +86,7 @@ test('cada tema se aplica al perfil/equipo; los integrantes conservan su sponsor
       filters: { teammates: 2, mode: 'Chill', playerClass: 'Ligero', specializationIds: [] },
       membersDisplay: [{ embarkId: p.embarkId, sponsorId: s.id }, { embarkId: 'Otro#4321', sponsorId: 'engimo' }] };
     assert.ok(template('profile', p).includes(`theme-${s.id}`));
+    assert.match(template('profile', p), /data:image\/webp;base64,/);
     const html = template('team', team); assert.ok(html.includes(`theme-${s.id}`)); assert.ok(html.includes('member-sponsor')); assert.ok(html.includes('ENGIMO'));
     assert.deepEqual(searchPayload(team).allowedMentions.roles, []);
   }
@@ -93,7 +99,7 @@ test('el perfil es opcional: canales públicos abiertos, canales privados según
     const u = member('u', ['game']), mod = member('mod', ['staff']);
     const secret = channel('secret', [{ id: 'g', type: 0, deny: P.ViewChannel }, { id: 'game', type: 0, allow: P.ViewChannel }]);
     await bot.accessGate.setup(guild);
-    assert.equal(roles.size, 16);
+    assert.equal(roles.size, 17);
     for (const id of ['welcome', 'rules', 'register']) assert.equal(channels.get(id).permissionsFor(u).has(P.ViewChannel), true);
     assert.equal(channels.get('general').permissionsFor(u).has(P.ViewChannel), true);
     assert.equal(secret.permissionsFor(u).has(P.ViewChannel), true);
@@ -107,7 +113,7 @@ test('el perfil es opcional: canales públicos abiertos, canales privados según
     u.roles.cache.delete('game'); f.store.queueRole('g', 'u'); await processRoleJobs(bot, guild);
     assert.equal(secret.permissionsFor(u).has(P.ViewChannel), false);
     await bot.accessGate.setup(guild);
-    assert.equal(roles.size, 16); assert.equal(f.store.settings('g').accessGate.enabled, false);
+    assert.equal(roles.size, 17); assert.equal(f.store.settings('g').accessGate.enabled, false);
     const next = channel('new');
     assert.equal(next.permissionsFor(member('new-user')).has(P.ViewChannel), true);
     assert.equal(next.permissionsFor(stranger).has(P.ViewChannel), true);
@@ -176,11 +182,14 @@ test('cambiar, pausar y eliminar: un sponsor, verificación independiente y role
     await f.bot.accessGate.setup(f.guild); const m = f.member('u');
     f.store.saveProfile('g', 'u', validateProfile(profile)); await processRoleJobs(f.bot, f.guild);
     let settings = f.store.settings('g'); assert.ok(m.roles.cache.has(settings.sponsorRoles.ospuze));
-    f.store.saveProfile('g', 'u', { sponsorId: 'holtow', searchable: false }); await processRoleJobs(f.bot, f.guild);
-    assert.equal(m.roles.cache.has(settings.sponsorRoles.ospuze), false); assert.ok(m.roles.cache.has(settings.sponsorRoles.holtow));
+    f.store.saveProfile('g', 'u', { sponsorId: 'cns', searchable: false }); await processRoleJobs(f.bot, f.guild);
+    assert.equal(m.roles.cache.has(settings.sponsorRoles.ospuze), false); assert.ok(m.roles.cache.has(settings.sponsorRoles.cns));
+    assert.equal(f.roles.get(settings.sponsorRoles.cns).name, 'CNS');
+    assert.equal(f.roles.get(settings.sponsorRoles.cns).permissions.bitfield, 0n);
+    assert.equal(f.roles.get(settings.sponsorRoles.cns).mentionable, false);
     assert.ok(m.roles.cache.has(settings.verifiedRole));
     f.store.deleteProfile('g', 'u'); await processRoleJobs(f.bot, f.guild);
-    assert.equal(m.roles.cache.has(settings.verifiedRole), false); assert.equal(m.roles.cache.has(settings.sponsorRoles.holtow), false);
+    assert.equal(m.roles.cache.has(settings.verifiedRole), false); assert.equal(m.roles.cache.has(settings.sponsorRoles.cns), false);
     f.store.saveProfile('g', 'u', validateProfile(profile));
     const add = m.roles.add; m.roles.add = async () => { throw Object.assign(new Error(), { code: 50013 }); };
     await processRoleJobs(f.bot, f.guild); assert.equal(f.store.roleJobs('g', Infinity).length, 1);
@@ -225,7 +234,7 @@ test('migración v3 respalda fotos, RS consultados y pausas; exige sponsor sin r
     store.saveProfile('g', 'u', old); store.db.exec('PRAGMA user_version=3');
     const backup = await store.migrate(); assert.ok(existsSync(backup));
     let p = store.profile('g', 'u'); assert.equal(p.sponsorId, null); assert.equal(p.needsCompletion, true);
-    assert.equal(p.rank, 'Ruby'); assert.equal(p.leaderboardPosition, 450); assert.equal(p.searchable, false); assert.equal(p.cardImage.key, 'kept');
-    store.close(); store = new Store(filename); assert.equal(await store.migrate(), null); assert.equal(store.schemaVersion, 5);
+    assert.equal(p.rank, 'Platino 3'); assert.equal(p.leaderboardPosition, null); assert.equal(p.score,34000); assert.equal(p.peakScore,34000); assert.equal(p.searchable, false); assert.equal(p.cardImage.key, 'kept');
+    store.close(); store = new Store(filename); assert.equal(await store.migrate(), null); assert.equal(store.schemaVersion, 9);
   } finally { store.close(); rmSync(dir, { recursive: true, force: true }); }
 });

@@ -129,17 +129,17 @@ test('migración hace respaldo antes de recalcular y conserva referencias y bús
   const dir = mkdtempSync(path.join(os.tmpdir(), 'vex-v2-')), file = path.join(dir, 'data.sqlite');
   let store = new Store(file);
   try {
-    store.saveProfile('g', 'u', { ...profile, schemaVersion: 1, specializationIds: undefined, specialization: 'Daga', rank: 'Oro 3' });
+    store.db.prepare('INSERT INTO profiles VALUES (?,?,?)').run('g','u',JSON.stringify({ ...profile, searchable:true, schemaVersion: 1, specializationIds: undefined, specialization: 'Daga', rank: 'Oro 3' }));
     const search = store.createSearch('g', 'u', 'old', { teammates: 2, description: 'Ranks', specialization: 'Daga', minScore: 0, maxScore: 999999 }, 600000, 0);
     search.status = 'open'; search.message = 'old-m'; search.members.push('friend'); store.updateSearch(search);
     const snapshot = await store.migrate(); assert.ok(existsSync(snapshot));
-    const old = new Store(snapshot); assert.equal(old.profile('g', 'u').rank, 'Oro 3'); old.close();
+    const old = new Store(snapshot); try {assert.equal(old.profile('g', 'u').rank, 'Oro 3');} finally {old.close();}
     const p = store.profile('g', 'u'); assert.equal(p.rank, 'Platino 3'); assert.equal(p.legacySpecialization, 'Daga'); assert.equal(p.needsCompletion, true); assert.deepEqual(p.specializationIds, []);
     assert.deepEqual(store.search(search.id).members, ['u', 'friend']); assert.equal(store.search(search.id).expires, search.expires);
     assert.equal(await store.migrate(), null);
-    store.close(); store = new Store(file); assert.equal(store.schemaVersion, 5); assert.equal(store.roleJobs('g').length, 1);
+    store.close(); store = new Store(file); assert.equal(store.schemaVersion, 9); assert.equal(store.roleJobs('g').length, 1);
     assert.equal(migrateProfile({ ...profile, score: null, specialization: 'Rayo curativo', schemaVersion: 1 }).needsCompletion, true);
-  } finally { store.close(); assert.ok(path.resolve(dir).startsWith(path.resolve(os.tmpdir()) + path.sep)); rmSync(dir, { recursive: true }); }
+  } finally { store.close(); assert.ok(path.resolve(dir).startsWith(path.resolve(os.tmpdir()) + path.sep)); rmSync(dir, { recursive: true, maxRetries:4, retryDelay:100 }); }
 });
 test('solicitud pública tiene solo Unirme; miembros recuperan controles sin ingresar dos veces', async () => {
   const { bot, store, guild } = await setup();

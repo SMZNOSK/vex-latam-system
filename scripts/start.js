@@ -1,0 +1,12 @@
+import { config } from '../src/config.js';
+import { readFileSync } from 'node:fs';
+const args = new Set(process.argv.slice(2));
+if (args.has('--test')) process.env.DISCORD_GUILD_ID = config.testGuildId;
+process.env.DISCORD_GUILD_ID ||= config.productionGuildId;
+const guild = process.env.DISCORD_GUILD_ID;
+if (!/^\d{17,20}$/.test(guild ?? '')) throw new Error('Falta un DISCORD_GUILD_ID válido.');
+if (!process.env.DISCORD_TOKEN?.trim()) throw new Error('Completa DISCORD_TOKEN en .env.');
+const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+console.log(`VEX LATAM SYSTEM · V1 (${pkg.version}) · ${guild===config.productionGuildId?'SERVIDOR PRINCIPAL':guild===config.testGuildId?'EXPERIMENTOS':guild}`);
+if(guild===config.productionGuildId && !config.operatorUserIds?.[guild]?.length) throw new Error('Configura los operadores de producción antes de iniciar.');
+if (!args.has('--check')) await import('../src/index.js');

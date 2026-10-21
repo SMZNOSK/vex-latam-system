@@ -10,9 +10,11 @@ import { TournamentStore } from '../src/tournament-store.js';
 import { Tournaments, requireTournamentAdmin, tournamentCommands } from '../src/tournaments.js';
 import { VexBot } from '../src/bot.js';
 import { commands } from '../src/commands.js';
-import { validateBasics, validateRules, mexicoDate, validateEntrant, balanceTeams, uniqueTeamName, tournamentTimes, TOURNAMENT_RETENTION_MS } from '../src/tournament-domain.js';
+import { validateBasics, validateRules, validateRegistrationMode, mexicoDate, validateEntrant, balanceTeams, uniqueTeamName, tournamentTimes, TOURNAMENT_RETENTION_MS } from '../src/tournament-domain.js';
 import { tournamentModal, draftPanel, draftControl, teamPayload, registrationPayload } from '../src/tournament-ui.js';
 import { template } from '../src/card-template.js';
+import { config } from '../src/config.js';
+config.roleCreationApprovedGuilds.g=['VXTG'];
 
 const basics = () => validateBasics({ name: 'Copa VEX', date: '2099-05-20', time: '20:30', capacity: '', access: 'public' });
 const event = (extra = {}) => ({ ...basics(), rules: validateRules({}), id: '0123456789abcdef', guild: 'g', status: 'open', dirty: true, ...extra });
@@ -22,7 +24,7 @@ async function fixture(filename = ':memory:') {
   const channels = new Collection(), roles = new Collection(), members = new Collection(); let serial = 0;
   const guild = { id: 'g' }, created = [], sent = [], logs = [];
   function member(id, connected = false) {
-    const m = { id, roles: { cache: new Collection(), async add(role) { m.roles.cache.set(role, roles.get(role)); } }, voice: { channelId: connected ? 'lobby' : null, async setChannel(channel) { if (m.voice.channelId) channels.get(m.voice.channelId)?.members.delete(id); m.voice.channelId = channel.id; channel.members.set(id, m); } } };
+    const m = { id, user:{id,username:id,bot:false}, displayName:id, roles: { cache: new Collection(), async add(role) { m.roles.cache.set(role, roles.get(role)); },async remove(role){m.roles.cache.delete(role);} }, voice: { channelId: connected ? 'lobby' : null, async setChannel(channel) { if (m.voice.channelId) channels.get(m.voice.channelId)?.members.delete(id); m.voice.channelId = channel.id; channel.members.set(id, m); } } };
     members.set(id, m); return m;
   }
   guild.members = { fetchMe: async () => ({ id: 'bot' }), fetch: async arg => { const id = typeof arg === 'string' ? arg : arg.user; if (!members.has(id)) throw Object.assign(new Error('unknown member'), { code: 10007 }); return members.get(id); } };
@@ -31,7 +33,9 @@ async function fixture(filename = ':memory:') {
   } };
   guild.channels = { cache: channels, fetch: async id => id ? channels.get(id) ?? null : channels, create: async data => {
     const messages = new Collection();
-    const c = { ...data, id: `c${++serial}`, members: new Collection(), permissionsFor: () => new PermissionsBitField(P.Administrator), async delete() { channels.delete(c.id); },
+    const c = { ...data, id: `c${++serial}`,parentId:data.parent??null,rawPosition:created.length,
+      async setParent(parent){c.parentId=typeof parent==='string'?parent:parent.id;return c;},async setName(name){c.name=name;return c;},
+      members: new Collection(), permissionsFor: () => new PermissionsBitField(P.Administrator), async delete() { channels.delete(c.id); },
       messages: { fetch: async arg => {
         if (typeof arg === 'string') { if (!messages.has(arg)) throw Object.assign(new Error('unknown message'), { code: 10008 }); return messages.get(arg); }
         let batch = [...messages.values()].reverse(); if (arg?.before) batch = batch.slice(batch.findIndex(m => m.id === arg.before) + 1);
@@ -43,6 +47,7 @@ async function fixture(filename = ':memory:') {
       } };
     channels.set(c.id, c); created.push(c); return c;
   } };
+  guild.channels.setPositions=async positions=>{for(const p of positions) channels.get(typeof p.channel==='string'?p.channel:p.channel.id).rawPosition=p.position;};
   const bot = new VexBot({ user: { id: 'bot' }, guilds: { fetch: async () => guild } }, store, {}); bot.log = (...args) => logs.push(args); bot.guilds.add('g');
   return { bot, service: bot.tournaments, store, guild, channels, roles, member, created, sent, logs };
 }
@@ -54,7 +59,7 @@ function interaction(guild, data = {}) {
   return i;
 }
 async function submit(f, d, step, fields) {
-  const i = interaction(f.guild, { customId: draftControl(d, `save-${step}`), isModalSubmit: () => true, fields: { getTextInputValue: k => fields[k] ?? '', getStringSelectValues: k => fields[k] ?? [] } });
+  const i = interaction(f.guild, { customId: draftControl(d, `save-${step}`), isModalSubmit: () => true, fields: { getTextInputValue: k => fields[k] ?? '', getStringSelectValues: k => fields[k] ?? [],getSelectedUsers:k=>new Collection((fields[k]??[]).map(id=>[id,{id}])) } });
   await f.service.handle(i); return i;
 }
 
@@ -210,7 +215,7 @@ test('balance RS, sobrantes y equipos únicos: repetir no reasigna ni duplica', 
   } finally { f.store.close(); }
 });
 
-test('perfil coincide sin API, solo no suplanta y clan exige rol y perfil para todos', async () => {
+test('perfil coincide sin API, solo no suplanta y clan exige rol para todos con o sin perfil', async () => {
   const f = await fixture(); await f.service.setup(f.guild); f.member('u1'); f.member('u2');
   f.store.saveProfile('g', 'u1', player(1)); f.store.saveProfile('g', 'u2', player(2));
   try {
@@ -219,13 +224,14 @@ test('perfil coincide sin API, solo no suplanta y clan exige rol y perfil para t
     f.guild.members && await (await f.guild.members.fetch('u1')).roles.add(f.store.settings('g').tournamentClanRole);
     const [p] = await f.service.verifyPlayers(f.guild, t, [player(1)], 'u1'); assert.equal(p.clanVerified, true);
     await assert.rejects(f.service.verifyPlayers(f.guild, t, [player(1), player(2)]), /VXTG/);
-    await assert.rejects(f.service.verifyPlayers(f.guild, t, [player(9)], 'u1'), /perfil/);
-    await assert.rejects(f.service.verifyPlayers(f.guild, event(), [player(2)], 'u1'), /otra persona/);
-    const [unknown] = await f.service.verifyPlayers(f.guild, event(), [player(9)]); assert.equal(unknown.user, null); assert.equal(unknown.profileMatched, false);
+    await assert.rejects(f.service.verifyPlayers(f.guild, t, [player(9)], 'u1'), /Discord/);
+    await assert.rejects(f.service.verifyPlayers(f.guild, event(), [player(2)], 'u1'), /Discord/);
+    f.member('u9');
+    const [unknown] = await f.service.verifyPlayers(f.guild, event(), [player(9)]); assert.equal(unknown.user, 'u9'); assert.equal(unknown.profileMatched, false); assert.equal(unknown.score,null);
   } finally { f.store.close(); }
 });
 
-test('asistente de creación, vista previa, identidad autocompletada y confirmación individual', async () => {
+test('crear, vista previa e inscripción individual inmediata con perfil sin cuestionario', async () => {
   const f = await fixture(); f.member('u1'); f.store.saveProfile('g', 'u1', player(1));
   try {
     const d = f.service.drafts.create('tournament-create', 'g', 'u1', { rules: validateRules({}) });
@@ -236,28 +242,140 @@ test('asistente de creación, vista previa, identidad autocompletada y confirmac
     assert.ok(JSON.stringify(draftPanel(d)).includes('Publicar torneo'));
     await f.service.handle(interaction(f.guild, { customId: draftControl(d, 'publish') }));
     const t = f.service.store.list('g')[0]; assert.equal(t.status, 'open');
-    await f.service.handle(interaction(f.guild, { customId: `tour:join:${t.id}:solo` }));
-    const signup = [...f.service.drafts.items.values()][0];
-    await submit(f, signup, 'identity', { id0: 'jugador1#1234' }); assert.equal(signup.data.people[0].score, 1000); assert.equal(signup.data.people[0].user, 'u1');
-    assert.ok(tournamentModal(signup, 'player').toJSON());
-    await submit(f, signup, 'player', { score: '1200', approximate: ['approximate'], playerClass: ['Mediano'], specializationIds: ['healing_beam'] });
-    await f.service.handle(interaction(f.guild, { customId: draftControl(signup, 'register') }));
-    assert.equal(f.service.store.entries(t.id)[0].approximate, true); assert.equal(f.service.drafts.items.size, 0);
-    await assert.rejects(f.service.handle(interaction(f.guild, { customId: draftControl(signup, 'register') })), /caducó/);
+    const join=interaction(f.guild, { customId: `tour:join:${t.id}:solo` });
+    await f.service.handle(join);
+    const [registered]=f.service.store.entries(t.id);
+    assert.equal(registered.score,1000); assert.equal(registered.user,'u1'); assert.equal(join.modals.length,0);
+    assert.equal(f.service.drafts.items.size,0); assert.match(JSON.stringify(join.replies),/Cancelar registro/);
+    await f.service.handle(interaction(f.guild,{customId:`tour:withdraw:${t.id}`}));
+    assert.equal(f.service.store.entries(t.id).length,0);
   } finally { f.store.close(); }
 });
 
-test('asistente de equipo permite tres IDs manuales sin usuario Discord; conserva solo menciones vinculadas', async () => {
-  const f = await fixture(); const t = event(); f.service.store.save(t);
+test('equipo usa selección Discord e importa perfiles; solo solicita el Embark ID pendiente y el organizador lidera', async () => {
+  const f = await fixture(); const t = event(); f.service.store.save(t); await f.service.setup(f.guild);
+  for(const id of ['u1','u2','u3'])f.member(id);
+  f.store.saveProfile('g','u1',player(1)); f.store.saveProfile('g','u2',player(2));
   try {
     const d = f.service.drafts.create(`tournament-signup-${t.id}`, 'g', 'u1', { tournament: t.id, mode: 'team', index: 0, people: [] });
-    await submit(f, d, 'identity', { teamName: 'Equipo nuevo', id0: 'Uno#1234', id1: 'Dos#1234', id2: 'Tres#1234' });
-    for (let n = 0; n < 3; n++) await submit(f, d, 'player', { score: '25000', approximate: [n ? 'exact' : 'approximate'], playerClass: ['Mediano'], specializationIds: ['healing_beam'] });
-    await f.service.handle(interaction(f.guild, { customId: draftControl(d, 'register') }));
-    const people = f.service.store.entries(t.id); assert.equal(people.length, 3); assert.ok(people.every(p => p.user == null));
-    const team = f.service.store.teams(t.id)[0], payload = teamPayload(t, team, people); assert.deepEqual(payload.allowedMentions.users, []); assert.match(JSON.stringify(payload), /≈/);
-    const linked = teamPayload(t, team, [player(1), ...people.slice(1)]); assert.deepEqual(linked.allowedMentions.users, ['u1']); assert.deepEqual(linked.allowedMentions.parse, []);
+    const modal=tournamentModal(d,'identity').toJSON();assert.equal(modal.components[1].component.type,5);
+    await submit(f, d, 'identity', { teamName: 'Equipo nuevo',teammates:['u2','u3'] });
+    assert.equal(d.data.people.filter(p=>!p.embarkId).length,1);
+    assert.equal(tournamentModal(d,'missing').toJSON().components.length,1);
+    await submit(f,d,'missing',{embarkId:'Jugador3#1234'});
+    const people = f.service.store.entries(t.id); assert.equal(people.length, 3); assert.deepEqual(people.map(p=>p.user),['u1','u2','u3']);
+    assert.equal(people[2].score,null);
+    const team = f.service.store.teams(t.id)[0], payload = teamPayload(t, team, people); assert.equal(team.leader,'u1');assert.deepEqual(payload.allowedMentions.users, ['u1','u2','u3']);
+    assert.throws(()=>f.service.store.renameTeam(t.id,'u2',{team:team.id,value:'Otro nombre'}),/líder/);
+    assert.equal(f.service.store.renameTeam(t.id,'u1',{team:team.id,value:'Nombre del líder'}).name,'Nombre del líder');
     assert.ok(JSON.stringify(registrationPayload(t, people, [team])).includes('Registrar equipo'));
+  } finally { f.store.close(); }
+});
+
+test('crear torneo individual: selecciona modalidad, publica un solo boton y deja jugadores pendientes', async () => {
+  const f = await fixture(); f.member('u1');
+  try {
+    await f.service.command(interaction(f.guild, { commandName: 'torneo', options: { getSubcommand: () => 'crear' } }));
+    const d = [...f.service.drafts.items.values()][0];
+    assert.equal(d.data.registrationMode, 'mixed');
+    await submit(f, d, 'basics', { ...basics(), capacity: '2', access: ['public'] });
+    const modal = tournamentModal(d, 'rules').toJSON();
+    assert.equal(modal.components.length, 5);
+    const choice = modal.components.find(c => c.component.custom_id === 'registrationMode').component;
+    assert.equal(choice.required, true);
+    assert.equal(choice.options.find(o => o.default).value, 'mixed');
+    await submit(f, d, 'rules', { registrationMode: ['solo'] });
+    assert.equal(tournamentModal(d, 'rules').toJSON().components[0].component.options.find(o => o.default).value, 'solo');
+    // Editing the calendar must not silently switch back to mixed registration.
+    await submit(f, d, 'basics', { ...basics(), capacity: '2', access: ['public'] });
+    assert.equal(d.data.registrationMode, 'solo');
+    const preview = await submit(f, d, 'skills', {});
+    assert.match(JSON.stringify(preview.replies), /Solo individuales/);
+    await f.service.handle(interaction(f.guild, { customId: draftControl(d, 'publish') }));
+    const t = f.service.store.list('g')[0];
+    assert.equal(t.registrationMode, 'solo'); assert.equal(t.status, 'open');
+    const panel = f.sent.find(m => m.id === t.registrationMessage).payload;
+    const controls = panel.components[0].toJSON().components;
+    assert.equal(controls.length, 1); assert.equal(controls[0].custom_id, `tour:join:${t.id}:solo`);
+    assert.doesNotMatch(JSON.stringify(panel), /Registrar equipo/);
+    assert.match(JSON.stringify(panel), /Solo individuales/i);
+    await f.service.handle(interaction(f.guild, { customId: `tour:join:${t.id}:solo` }));
+    const signup = [...f.service.drafts.items.values()][0];
+    await submit(f, signup, 'solo-id', { embarkId: 'Jugador1#1234' });
+    f.service.store.register(t.id, [player(2)]); f.service.store.register(t.id, [player(3)]);
+    assert.equal(f.service.store.entries(t.id).length, 3);
+    assert.ok(f.service.store.entries(t.id).every(p => p.team === null));
+    assert.equal(f.service.store.teams(t.id).length, 0, 'registration never automatically forms a team');
+    f.service.store.closeRegistration(t.id);
+    await f.service.command(interaction(f.guild, { commandName: 'torneo-formar-equipo', options: { getString: () => t.id } }));
+    assert.equal(f.service.store.teams(t.id).length, 1);
+    assert.ok(f.service.store.entries(t.id).every(p => p.team));
+  } finally { f.store.close(); }
+});
+
+test('modalidad individual bloquea botones y borradores de equipo antiguos, y registros directos', async () => {
+  const f = await fixture(), s = f.service.store, t = event({ registrationMode: 'solo' }); s.save(t);
+  try {
+    await assert.rejects(f.service.handle(interaction(f.guild, { customId: `tour:join:${t.id}:team` })), /solo admite inscripciones individuales/);
+    assert.equal(f.service.drafts.items.size, 0);
+    const d = f.service.drafts.create(`tournament-signup-${t.id}`, 'g', 'u1', { tournament: t.id, mode: 'team', people: [player(1, { confirmed: true }), player(2, { confirmed: true }), player(3, { confirmed: true })], teamName: 'Equipo antiguo', index: 0 });
+    await assert.rejects(f.service.handle(interaction(f.guild, { customId: draftControl(d, 'identity') })), /solo admite inscripciones individuales/);
+    await assert.rejects(submit(f, d, 'identity', { teamName: 'Equipo antiguo', id0: 'Uno#1234', id1: 'Dos#1234', id2: 'Tres#1234' }), /solo admite inscripciones individuales/);
+    await assert.rejects(f.service.handle(interaction(f.guild, { customId: draftControl(d, 'register') })), /solo admite inscripciones individuales/);
+    assert.equal(d.busy, false);
+    assert.throws(() => s.register(t.id, [player(1), player(2), player(3)], 'Equipo antiguo'), /solo admite inscripciones individuales/);
+    assert.throws(() => s.register(t.id, [player(1), player(2), player(3)]), /solo admite inscripciones individuales/);
+    assert.equal(s.entries(t.id).length, 0); assert.equal(s.teams(t.id).length, 0);
+    s.register(t.id, [player(1)]);
+    assert.equal(s.entries(t.id).length, 1, 'rejected writes roll back without affecting a valid signup');
+    const closed = registrationPayload({ ...t, status: 'closed' }, s.entries(t.id), []);
+    assert.equal(closed.components[0].toJSON().components.length, 1);
+    assert.ok(closed.components[0].toJSON().components[0].disabled);
+  } finally { f.store.close(); }
+});
+
+test('modalidad individual persiste al reiniciar, respeta cupos y duplicados, y permite formar despues del cierre', async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'vex-solo-tournament-')), filename = path.join(dir, 'vex.sqlite');
+  let f = await fixture(filename), s = f.service.store;
+  const t = event({ registrationMode: 'solo', capacity: 1 });
+  try {
+    s.save(t); s.register(t.id, [player(1)]);
+    assert.throws(() => s.register(t.id, [player(9, { embarkId: 'JUGADOR1#1234' })]), /ya está inscrito/);
+    assert.throws(() => s.register(t.id, [player(9, { user: 'u1' })]), /ya está inscrito/);
+    s.register(t.id, [player(2)]); s.register(t.id, [player(3)]);
+    assert.throws(() => s.register(t.id, [player(4)]), /cupos/);
+    f.store.close(); f = await fixture(filename); s = f.service.store;
+    assert.equal(s.get(t.id).registrationMode, 'solo');
+    assert.equal(s.entries(t.id).length, 3); assert.equal(s.teams(t.id).length, 0);
+    assert.throws(() => s.register(t.id, [player(4), player(5), player(6)], 'Equipo'), /solo admite inscripciones individuales/);
+    s.closeRegistration(t.id);
+    assert.equal(s.form(t.id).teams.length, 1);
+    assert.equal(s.form(t.id).teams.length, 0);
+  } finally { f.store.close(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('modalidad mixta predeterminada conserva equipos y la individual coincide en texto y carteles', async () => {
+  assert.equal(validateRegistrationMode(undefined), 'mixed');
+  for (const invalid of ['', 'team', 'unknown']) assert.throws(() => validateRegistrationMode(invalid), /modalidad/);
+  const f = await fixture(), s = f.service.store;
+  try {
+    for (const [id, registrationMode] of [['legacy', undefined], ['mixed', 'mixed']]) {
+      const t = event({ id, registrationMode }); s.save(t);
+      s.register(t.id, [player(1), player(2), player(3)], 'Equipo completo');
+      assert.equal(s.teams(t.id).length, 1);
+      assert.equal(registrationPayload(t, [], []).components[0].toJSON().components.length, 2);
+      assert.match(template('tournament-poster', t, 1100), /individualmente o con tu equipo/);
+    }
+    for (const kind of ['tournament', 'tournament-poster']) {
+      const html = template(kind, event({ registrationMode: 'solo' }), kind === 'tournament-poster' ? 1100 : 390);
+      assert.match(html, /[Ss]olo individual/); assert.match(html, /[Ee]quipos después/);
+      assert.doesNotMatch(html, /individualmente o con tu equipo|Individual o equipo de tres/);
+    }
+    const d = f.service.drafts.create('tournament-create', 'g', 'u1', { rules: validateRules({}) });
+    await submit(f, d, 'basics', { ...basics(), access: ['public'] });
+    await assert.rejects(submit(f, d, 'rules', { registrationMode: ['unknown'] }), /modalidad/);
+    assert.equal(d.data.rulesDone, undefined);
+    assert.equal(d.busy, false);
   } finally { f.store.close(); }
 });
 
@@ -326,7 +444,7 @@ test('migración v4 respalda y conserva perfiles, inscripciones y equipos al rei
   try {
     await store.migrate(); const p = { ...player(1), schemaVersion: 3 }; store.saveProfile('g', 'u1', p);
     const before = store.profile('g', 'u1'); store.db.exec('PRAGMA user_version=4');
-    const snapshot = await store.migrate(); assert.ok(existsSync(snapshot)); assert.equal(store.schemaVersion, 5); assert.deepEqual(store.profile('g', 'u1'), before);
+    const snapshot = await store.migrate(); assert.ok(existsSync(snapshot)); assert.equal(store.schemaVersion, 9); assert.deepEqual(store.profile('g', 'u1'), before);
     const backup = new DatabaseSync(snapshot); assert.equal(backup.prepare('PRAGMA user_version').get().user_version, 4); backup.close();
     const s = new TournamentStore(store); s.save(event()); s.register(event().id, [player(1)]); s.register(event().id, [player(2)]); s.register(event().id, [player(3)]); s.form(event().id);
     store.close(); store = new Store(filename); assert.equal(await store.migrate(), null);

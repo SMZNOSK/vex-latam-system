@@ -5,6 +5,10 @@ import { finalsFontCSS } from './finals-fonts.js';
 import { sponsorBanner, sponsorBadge, sponsorCSS } from './sponsor-design.js';
 import { getSponsor } from './sponsors.js';
 import { tournamentDesign, tournamentCSS } from './tournament-design.js';
+import { memberCardHTML } from './member-card-design.js';
+import { clanHTML } from './clan-design.js';
+import { currentRS, recordRS } from './profile-rs.js';
+import { profileCSS } from './profile-design.js';
 
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const fmt = value => value == null ? 'Pendiente' : Number(value).toLocaleString('es-MX');
@@ -16,7 +20,7 @@ function rankBadge(rank) {
 function header() {
   const vex = vexLogo(), finals = finalsLogo();
   return `<header>${vex ? `<div class="brand-lockup"><span class="vex-mark"><img src="${vex}" alt="Logo de VEX LATAM" decoding="sync"></span><span class="brand-name">VEX LATAM<small>COMUNIDAD THE FINALS</small></span></div>`
-    : '<span class="brand">VEX<b> /</b></span>'}${finals ? `<img class="finals-logo" src="${finals}" alt="THE FINALS" decoding="sync">` : '<span class="game">THE FINALS</span>'}</header>`;
+    : '<span class="brand">VEX<b> /</b></span>'}${finals ? `<div class="finals-lockup"><img class="finals-logo" src="${finals}" alt="" decoding="sync"><span>THE<br>FINALS</span></div>` : '<span class="game">THE FINALS</span>'}</header>`;
 }
 const classIcon = value => `<span class="class-icon">${value === 'Ligero' ? '↯' : value === 'Mediano' ? '✚' : value === 'Pesado' ? '⬢' : '◈'}</span>`;
 const chip = value => `<span class="chip">${escapeHTML(value)}</span>`;
@@ -45,19 +49,21 @@ function roster(data) {
 }
 export function template(kind, data, width = 720, font = '') {
   if (!Number.isInteger(width) || width < 300 || width > 1440) throw new RangeError('Ancho de tarjeta inválido');
+  if (['welcome', 'farewell'].includes(kind)) return memberCardHTML(kind, data, width, font);
+  if (['clan-poster', 'clan-ranking', 'clan-admission'].includes(kind)) return clanHTML(kind, data, width);
   const sponsor = ['profile', 'team'].includes(kind) ? getSponsor(data.sponsorId) : null;
   let title, subtitle, body, category;
   if (kind === 'profile') {
     title = data.embarkId; subtitle = data.needsCompletion
       ? getSponsor(data.sponsorId) ? 'Completa tus especializaciones para encontrar equipo' : 'Elige tu patrocinador para completar el registro'
-      : 'Tu ficha de jugador'; category = 'PERFIL DE JUGADOR';
-    body = `<div class="rank">${rankBadge(data.rank)}<div><span class="eyebrow">RANGO AUTOMÁTICO</span><h2>${escapeHTML(data.rank)}</h2><p>${fmt(data.score)} <span>RS</span></p></div><span class="status">${data.searchable === false ? 'PAUSADO' : 'ACTIVO'}</span></div>
-      <div class="class">${classIcon(data.playerClass)}<div><span class="eyebrow">CLASE HABITUAL</span><h3>${escapeHTML(data.playerClass)}</h3></div></div>
-      <section><span class="eyebrow">ESPECIALIZACIONES</span>${illustratedSkills(data.specializationIds, 'Selección pendiente')}</section>
-      ${data.needsCompletion && data.legacySpecialization ? `<p class="note">Referencia anterior: ${escapeHTML(data.legacySpecialization)}</p>` : ''}
-      <p class="note">${data.rankSource === 'finalstracker' ? `RS consultados en FINALSTRACKER · ${escapeHTML(data.season)}${data.leaderboardPosition ? ` · Puesto ${fmt(data.leaderboardPosition)}` : ''}` : 'RS declarados por el jugador · Rango calculado por puntos'}</p>`;
+      : ''; category = 'PERFIL DE JUGADOR';
+    body = `<div class="profile-heading"><h1>${escapeHTML(title)}</h1>${subtitle?`<p class="subtitle">${escapeHTML(subtitle)}</p>`:''}</div>
+      <div class="rank">${rankBadge(data.rank)}<h2>${escapeHTML(data.rank)}</h2></div>
+      <dl class="rs-metrics"><div><dt>RS ACTUAL</dt><dd>${fmt(currentRS(data))}</dd></div><div><dt>RÉCORD RS</dt><dd>${fmt(recordRS(data))}</dd></div></dl>
+      <div class="loadout"><div class="class">${classIcon(data.playerClass)}<div><span class="eyebrow">CLASE</span><h3>${escapeHTML(data.playerClass)}</h3></div></div>
+      <section><span class="eyebrow">ESPECIALIZACIONES</span>${illustratedSkills(data.specializationIds, 'Selección pendiente')}</section></div>`;
     const uri = cardURI(data.cardImageData);
-    if (uri) body = `<div class="profile-layout"><aside class="portrait"><img src="${uri}" alt="Tarjeta del juego de ${escapeHTML(data.embarkId)}" loading="eager" decoding="sync"></aside><div class="profile-details">${body}</div></div>`;
+    body = `<div class="profile-layout${uri?' has-portrait':''}">${uri?`<aside class="portrait"><img src="${uri}" alt="Tarjeta del juego de ${escapeHTML(data.embarkId)}" loading="eager" decoding="sync"></aside>`:''}<div class="profile-details">${body}</div></div>`;
   } else if (kind === 'team') {
     const f = data.filters, open = data.status === 'open' && data.expires > Date.now(), full = data.members.length >= f.teammates + 1;
     const hot = f.mode === 'HOT';
@@ -108,8 +114,12 @@ export function template(kind, data, width = 720, font = '') {
     .standing-photo{aspect-ratio:2/3;background:#15171f}
     ${width < 500 ? 'h1{font-size:38px}.brand-name{font-size:24px}.brand-name small{font-size:9px}.finals-logo{width:115px}.eyebrow{font-size:13px}.subtitle{font-size:18px}.skill-frame,.profile-details .skill-frame{width:75px;height:75px}.identity{font-size:21px}.tile-identity{font-size:20px}.champion{grid-template-columns:116px minmax(0,1fr);gap:14px;padding:12px}.champion .standing-place{font-size:50px}.champion .standing-name{font-size:27px}.champion .standing-score{font-size:34px}.standing-rank{font-size:15px}.podium-card{grid-template-columns:1fr;gap:8px;padding:10px}.podium-card .standing-photo,.podium-card .standing-identity{width:100%;max-width:105px;margin:auto}.podium-card .standing-name{font-size:22px}.standing-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.standing-small .standing-photo,.standing-small .standing-identity{max-width:110px;margin:auto}' : ''}
     ${sponsorCSS(sponsor?.id, width)}
+    .rs-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 22px}.rs-metrics>div{background:#11151ddd;border:1px solid #ffffff3b;border-bottom:3px solid #ffffff8c;padding:13px 15px;min-width:0}.rs-metrics dt{font:12px/1.4 FinalsBody,Arial,sans-serif;letter-spacing:1px;color:#cbd0da}.rs-metrics dd{font:34px/1.15 FinalsDisplay,Arial,sans-serif;margin:5px 0 0;color:#fff}.rs-metrics>div+div{border-bottom-color:#ffffff38}.rs-metrics>div+div dd{color:#b7bdc8}.profile-details .rs-metrics dd{font-size:30px}.profile-details .rs-metrics dt{font-size:11px}.rank p>span{font:11px/1.3 FinalsBody,Arial,sans-serif;color:#bfc1cd}
     ${tournamentCSS}
-    </style><main class="canvas${kind === 'tournament-poster' ? ' poster-wide' : ''}${sponsor ? ` theme-${sponsor.id}` : ''}">${header()}${sponsorBanner(sponsor?.id)}<span class="eyebrow">${category}</span><h1>${escapeHTML(title)}</h1><p class="subtitle">${escapeHTML(subtitle)}</p>${body}<footer><span>VEX LATAM SYSTEM${sponsor ? ` · ${sponsor.label}` : ''}</span><span>${kind === 'profile' ? 'PERFIL PRIVADO' : 'COMUNIDAD · EQUIPO'}</span></footer></main></html>`;
+    .finals-lockup{display:flex;align-items:center;gap:8px;flex:none;color:#fff}.finals-lockup .finals-logo{width:54px;height:54px;object-fit:contain}.finals-lockup>span{font:25px/.9 FinalsDisplay,Arial,sans-serif;letter-spacing:1px}.profile-card .finals-lockup .finals-logo{width:42px;height:42px}.profile-card .finals-lockup>span{font-size:23px}
+    @media(max-width:500px){.finals-lockup .finals-logo,.profile-card .finals-lockup .finals-logo{width:33px;height:33px}.finals-lockup>span,.profile-card .finals-lockup>span{font-size:20px;letter-spacing:.3px}.finals-lockup{gap:5px}}
+    ${kind==='profile'?profileCSS:''}
+    </style><main class="canvas${kind==='profile'?' profile-card':''}${kind === 'tournament-poster' ? ' poster-wide' : ''}${sponsor ? ` theme-${sponsor.id}` : ''}">${header()}${kind==='profile'?'':`${sponsorBanner(sponsor?.id)}<span class="eyebrow">${category}</span><h1>${escapeHTML(title)}</h1><p class="subtitle">${escapeHTML(subtitle)}</p>`}${body}${kind==='profile'?sponsorBanner(sponsor?.id,{compact:true}):''}<footer><span>VEX LATAM${kind==='profile'?'':' SYSTEM'}${sponsor ? ` · ${sponsor.label}` : ''}</span><span>${kind === 'profile' ? 'THE FINALS' : 'COMUNIDAD · EQUIPO'}</span></footer></main></html>`;
 }
 
 function leaderboardBody(players) {
