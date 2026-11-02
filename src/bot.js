@@ -24,6 +24,7 @@ import { skillLabels } from './catalog.js';
 import { AccessGate } from './access-gate.js';
 import { ChatSearch } from './chat-search.js';
 import { Tournaments, tournamentCommands, requireTournamentAdmin } from './tournaments.js';
+import { PrivateMatches } from './private-matches.js';
 import { Mailboxes, isAdministrativeCommand } from './mailboxes.js';
 import { MemberCards } from './member-cards.js';
 import { WordLists, parseModerationTerms } from './word-lists.js';
@@ -52,6 +53,7 @@ export class VexBot {
     this.accessGate = new AccessGate(this);
     this.chatSearch = new ChatSearch(this);
     this.tournaments = new Tournaments(this);
+    this.privateMatches = new PrivateMatches(this);
     this.mailboxes = new Mailboxes(this);
     this.wordLists = new WordLists(this);
     this.memberGuide = new MemberGuide(this);
@@ -279,6 +281,7 @@ export class VexBot {
       if (i.customId?.startsWith('emoji:')) return await this.inlineEmojis.handle(i);
       if (i.customId?.startsWith('clan:')) return await this.clans.handle(i);
       if (i.customId?.startsWith('tour:')) return await this.tournaments.handle(i);
+      if (i.customId?.startsWith('privada:')) return await this.privateMatches.handle(i);
       if (i.customId === 'leaderboard:view') return await this.leaderboard.view(i);
       if (i.customId === 'private:close') {
         if (!await this.privateReplies.close(i)) throw new UserError('Este botón solo cierra tu panel privado.');
@@ -317,6 +320,7 @@ export class VexBot {
       this.mailboxes.assertAdminCommand(i);
     }
     if (tournamentCommands.includes(name)) return this.tournaments.command(i);
+    if (name === 'privadas') return this.privateMatches.command(i);
     if (clanCommands.includes(name)) return this.clans.command(i);
     if (name === 'anuncio') requireTournamentAdmin(i);
     if (name === 'ping') return this.sendPrivate(i, `VEX LATAM SYSTEM está conectado. Latencia: ${this.client.ws.ping} ms.`);
@@ -324,7 +328,7 @@ export class VexBot {
       '**Jugadores:** usa las tarjetas de registro-de-datos, buscar-equipo y leaderboard. También puedes usar /perfil, /buscar y /leaderboard.\n'
       + '**Buzones:** usa los botones de #feedback y #reportes. Solo los administradores reciben los envíos; el feedback admite anonimato opcional.\n'
       + '**VLS Find Squad:** perfiles, búsquedas, leaderboard y salas de voz temporales.\n'
-      + '**Administración:** usa #admin-bot para /panel, /roles, /embed, /bienvenida, /despedida, /avisos, /anuncio, /reglas, /moderacion y /busqueda-chat.\n'
+      + '**Administración:** usa #admin-bot para /panel, /roles, /embed, /bienvenida, /despedida, /avisos, /anuncio, /privadas, /reglas, /moderacion y /busqueda-chat.\n'
       + '**Torneos:** inscríbete desde el panel del torneo. Solo Administradores: /torneo crear, /torneo editar, /torneo revisar, /torneo cerrar convocatoria, /torneo terminar, /torneo-formar-equipo, /torneo-chat-de-voz-general y /torneo-chat-de-voz-equipos. Cerrar convocatoria bloquea inscripciones; terminar inicia 7 días para eliminar los canales del torneo.\n'
       + 'Los perfiles se guardan por servidor. El registro y la consulta de tu perfil son privados. Tu tarjeta, Embark ID y RS pueden aparecer en solicitudes públicas y en el top 10 de esta comunidad.');
     if (name === 'perfil') return this.store.profile(i.guildId, i.user.id) ? this.workflows.profile(i) : this.workflows.startProfile(i);

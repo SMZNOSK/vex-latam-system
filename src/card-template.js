@@ -9,6 +9,7 @@ import { memberCardHTML } from './member-card-design.js';
 import { clanHTML } from './clan-design.js';
 import { currentRS, recordRS } from './profile-rs.js';
 import { profileCSS } from './profile-design.js';
+import { privateMatchHTML } from './private-match-design.js';
 
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const fmt = value => value == null ? 'Pendiente' : Number(value).toLocaleString('es-MX');
@@ -49,6 +50,7 @@ function roster(data) {
 }
 export function template(kind, data, width = 720, font = '') {
   if (!Number.isInteger(width) || width < 300 || width > 1440) throw new RangeError('Ancho de tarjeta inválido');
+  if (kind === 'private-match') return privateMatchHTML(data, width);
   if (['welcome', 'farewell'].includes(kind)) return memberCardHTML(kind, data, width, font);
   if (['clan-poster', 'clan-ranking', 'clan-admission'].includes(kind)) return clanHTML(kind, data, width);
   const sponsor = ['profile', 'team'].includes(kind) ? getSponsor(data.sponsorId) : null;
