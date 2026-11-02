@@ -12,11 +12,9 @@ exit /b %VEX_LAUNCH_RESULT%
 
 :launch
 setlocal EnableExtensions DisableDelayedExpansion
-title VEX LATAM SYSTEM V1 - Inicio del bot
+title VEX LATAM SYSTEM - Inicio del bot
 cd /d "%VEX_LAUNCH_DIR%"
 if errorlevel 1 goto :error
-echo VEX LATAM SYSTEM V1 - Preparacion e inicio
-echo.
 where node >nul 2>nul
 if errorlevel 1 (
   echo Instala Node.js 24 o superior desde https://nodejs.org
@@ -28,6 +26,10 @@ if errorlevel 1 (
   echo Necesitas Node.js 24 o superior.
   goto :error
 )
+for /f "delims=" %%V in ('node -p "require('./package.json').version"') do set "VEX_VERSION=%%V"
+title VEX LATAM SYSTEM v%VEX_VERSION% - Inicio del bot
+echo VEX LATAM SYSTEM v%VEX_VERSION% - Preparacion e inicio
+echo.
 where npm.cmd >nul 2>nul
 if errorlevel 1 (
   echo No encuentro npm. Reinstala Node.js incluyendo npm y vuelve a intentarlo.
@@ -107,7 +109,7 @@ if errorlevel 1 (
 echo [2/4] Comprobando navegador para las tarjetas...
 node --env-file=.env scripts/prepare-browser.js
 if errorlevel 1 goto :error
-echo [3/4] Comprobando archivos de la V1...
+echo [3/4] Comprobando archivos del bot...
 node scripts/check.js
 if errorlevel 1 goto :error
 if /I "%~1"=="--pruebas" (

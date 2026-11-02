@@ -32,7 +32,16 @@ export class CardRenderer {
         const fontPath = 'C:/Windows/Fonts/segoeui.ttf';
         this.font ??= existsSync(fontPath) ? readFileSync(fontPath).toString('base64') : '';
         await page.setContent(template(kind, data, width, this.font), { waitUntil: 'load', timeout: 10000 });
-        await page.evaluate(async () => { await document.fonts.ready; await Promise.all([...document.images].map(img => img.decode())); });
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await Promise.all([...document.images].map(img => img.decode()));
+          const name = document.querySelector('.fit-name');
+          if (name) {
+            let size = parseFloat(getComputedStyle(name).fontSize);
+            while (name.scrollWidth > name.clientWidth && size > 18) name.style.fontSize = `${--size}px`;
+            if (name.scrollWidth > name.clientWidth) name.style.textOverflow = 'ellipsis';
+          }
+        });
         const buffer = await page.locator('.canvas').screenshot({ type: 'png', timeout: 10000 });
         this.cache.set(key, buffer);
         if (this.cache.size > 48) this.cache.delete(this.cache.keys().next().value);

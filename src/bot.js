@@ -27,6 +27,7 @@ import { Tournaments, tournamentCommands, requireTournamentAdmin } from './tourn
 import { PrivateMatches } from './private-matches.js';
 import { Mailboxes, isAdministrativeCommand } from './mailboxes.js';
 import { MemberCards } from './member-cards.js';
+import { sponsors, completeProfile } from './sponsors.js';
 import { WordLists, parseModerationTerms } from './word-lists.js';
 import { MemberGuide } from './member-guide.js';
 import { InlineEmojis, resolveEmbedEmojis } from './inline-emojis.js';
@@ -243,7 +244,7 @@ export class VexBot {
       return response;
     });
   }
-  async searchCard(s, notify = false) {
+  async searchCard(s, notify = false, author = null) {
     const membersDisplay = await Promise.all(s.members.map(async id => {
       const profile = this.store.profile(s.guild, id);
       return { embarkId: profile?.embarkId ?? 'Perfil no disponible', sponsorId: profile?.sponsorId ?? null,
@@ -252,6 +253,17 @@ export class VexBot {
     const hostProfile = this.store.profile(s.guild, s.host);
     const data = { ...s, membersDisplay, sponsorId: hostProfile?.sponsorId ?? null, hostScore: hostProfile?.score ?? null };
     const settings = this.store.settings(s.guild);
+    if (s.filters.mode === 'HOT' && (!hostProfile?.searchable || !completeProfile(hostProfile))) {
+      let member = author;
+      if (!member && this.renderer) {
+        try { member = await (await this.client.guilds.fetch(s.guild)).members.fetch(s.host); } catch { /* El usuario puede haber salido. */ }
+      }
+      const avatarData = member && this.memberCards ? await this.memberCards.avatar(member) : null;
+      const displayName = member?.displayName ?? member?.globalName ?? member?.user?.globalName ?? member?.username ?? member?.user?.username ?? 'Jugador';
+      const index = createHash('sha256').update(s.id).digest().readUInt32BE(0) % sponsors.length;
+      const guest = { ...data, guestSearch: true, displayName, avatarData, sponsorId: sponsors[index].id };
+      return withImage(searchPayload(guest, settings.chatSearch?.gameRole ?? settings.finalsRole, notify), this.renderer, 'guest-search', guest);
+    }
     return withImage(searchPayload(data, s.filters.mode === 'HOT' ? settings.chatSearch?.gameRole ?? settings.finalsRole : settings.finalsRole, notify), this.renderer, 'team', data);
   }
   async visualProfile(p) {
@@ -536,7 +548,7 @@ export class VexBot {
       +(s.mirrorPending?' Hay copias pendientes; se reintentarán automáticamente.':'');
     return this.replyCard(i, teamPrivatePayload(s, i.user.id, notice));
   }
-  async publishTeam(guildId, host, channel, filters, { beforeSend, reply } = {}) {
+  async publishTeam(guildId, host, channel, filters, { beforeSend, reply, author } = {}) {
     const hot = filters.mode === 'HOT';
     // La reserva es síncrona y compartida por chat y asistente: cuenta también mientras se renderiza.
     const s = this.store.createSearch(guildId, host, channel.id, filters,
@@ -545,7 +557,7 @@ export class VexBot {
       await this.queue(`publish:${guildId}`, async () => {
         s.status = 'open';
         // Renderizar antes de reservar la notificación. Editar nunca reserva ni notifica.
-        const payload = await this.searchCard(s, false);
+        const payload = await this.searchCard(s, false, author);
         const latest = this.store.search(s.id), current = this.store.profile(guildId, host);
         if (latest?.status !== 'pending' || latest.expires <= Date.now() || (!hot && (!current?.searchable || current.needsCompletion))) throw new UserError('El perfil o la búsqueda cambió antes de publicar. Abre una búsqueda nueva.');
         if (beforeSend && !beforeSend()) return;

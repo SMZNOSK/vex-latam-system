@@ -130,6 +130,7 @@ export class ChatSearch {
           specializationIds: [], minScore: null, maxScore: null, schemaVersion: 3 };
         const published = await this.bot.publishTeam(message.guildId, message.author.id, message.channel, filters, {
           reply: payload.reply,
+          author: message.member ?? message.author,
           beforeSend: () => {
             const latest = this.bot.store.settings(message.guildId), live = latest.chatSearch;
             return live?.enabled && chatSourceMatches(live,message.channelId) && lookingForTeam(message.content, live.terms)

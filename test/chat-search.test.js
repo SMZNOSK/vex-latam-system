@@ -72,6 +72,49 @@ test('palabras personalizadas reemplazan las automáticas y respetan frases, ace
   assert.equal(lookingForTeam('jugar', ['juga(r|mos)']), false);
 });
 
+test('palabras configuradas publican la tarjeta de Discord sin perfil y mantienen el patrocinador al actualizar', { skip: !contentIntent }, async () => {
+  const f = await fixture();
+  try {
+    const renders = [], avatar = 'data:image/png;base64,YQ==';
+    f.bot.renderer = { render: async (kind, data) => { renders.push({ kind, data }); return Buffer.from('png'); } };
+    f.bot.memberCards = { avatar: async () => avatar };
+    const member = { displayName: 'Jugador Discord' };
+    f.bot.client = { guilds: { fetch: async () => ({ members: { fetch: async () => member } }) } };
+    const settings = f.store.settings('g'); settings.chatSearch.terms = ['formar squad']; f.store.saveSettings('g', settings);
+    await f.bot.chatSearch.handle(f.message('+1', { member }));
+    assert.equal(f.sent.length, 0);
+    await f.bot.chatSearch.handle(f.message('formar squad', { member }));
+    assert.equal(f.sent.length, 1);
+    assert.equal(renders[0].kind, 'guest-search');
+    assert.equal(renders[0].data.displayName, 'Jugador Discord');
+    assert.equal(renders[0].data.avatarData, avatar);
+    assert.equal(f.store.profile('g', 'player'), null);
+    const search = f.store.activeSearch('g', 'player');
+    await f.bot.searchCard(search);
+    assert.equal(renders[1].data.sponsorId, renders[0].data.sponsorId);
+    assert.equal(renders[1].data.displayName, 'Jugador Discord');
+    assert.equal(f.sent[0].allowedMentions.parse.length, 0);
+  } finally { f.store.close(); }
+});
+
+test('perfiles activos conservan tarjeta normal y perfiles desactivados usan identidad de Discord', async () => {
+  const f = await fixture();
+  try {
+    const renders = [];
+    f.bot.renderer = { render: async (kind, data) => { renders.push({ kind, data }); return Buffer.from('png'); } };
+    f.bot.memberCards = { avatar: async () => null };
+    const filters = { mode: 'HOT', teammates: 2 };
+    const search = { id: 'abc', guild: 'g', host: 'player', filters, members: ['player'], status: 'open', expires: Date.now() + 60000 };
+    f.store.saveProfile('g', 'player', { embarkId: 'Jugador#1234', sponsorId: 'ospuze', needsCompletion: false, searchable: true });
+    await f.bot.searchCard(search, false, { displayName: 'Discord' });
+    assert.equal(renders.at(-1).kind, 'team');
+    f.store.saveProfile('g', 'player', { embarkId: 'Jugador#1234', sponsorId: 'ospuze', needsCompletion: false, searchable: false });
+    await f.bot.searchCard(search, false, { displayName: 'Discord' });
+    assert.equal(renders.at(-1).kind, 'guest-search');
+    assert.equal(renders.at(-1).data.avatarData, null);
+  } finally { f.store.close(); }
+});
+
 test('lista limpia duplicados normalizados, acepta - para vaciar y rechaza entradas inválidas', () => {
   assert.deepEqual(parseChatSearchTerms('quién juega, QUIEN   JUEGA, +1, + 1, , 1+'), ['quién juega', '+1', '1+']);
   assert.deepEqual(parseChatSearchTerms(' - '), []);

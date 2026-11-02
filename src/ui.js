@@ -104,7 +104,8 @@ export function searchPayload(s, roleId = null, notify = false) {
   const f = s.filters;
   if (f.mode === 'HOT') {
     const container = new ContainerBuilder().setAccentColor(0xed243b)
-      .addTextDisplayComponents(display(roleId ? `<@&${roleId}>` : 'THE FINALS'))
+      .addTextDisplayComponents(display((roleId ? `<@&${roleId}>` : 'THE FINALS') + (s.guestSearch
+        ? `\n**Organiza:** <@${s.host}> · **Equipo:** ${s.members.length}/${s.filters.teammates + 1}\n**Estado:** ${active ? (full ? 'Equipo completo' : 'Buscando jugadores') : s.status === 'expired' ? 'Caducada' : 'Cerrada'}` : '')))
       .addActionRowComponents(row(button(`search:join:${s.id}`, 'Unirme', ButtonStyle.Success, !active || full),
         button(`search:controls:${s.id}`, 'Mi equipo')))
       .addActionRowComponents(row(button(`search:voice:${s.id}`, s.voiceChannel ? 'Acceder a sala de voz' : 'Crear sala de voz', ButtonStyle.Primary, !active && !s.voiceChannel),
@@ -136,7 +137,7 @@ export async function withImage(payload, renderer, kind, data) {
     const buffer = await renderer.render(kind, data);
     const name = `vex-${kind}.png`;
     const gallery = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder()
-      .setURL(`attachment://${name}`).setDescription(data.filters?.mode === 'HOT'
+      .setURL(`attachment://${name}`).setDescription(kind === 'guest-search' ? `Búsqueda de equipo de ${String(data.displayName).slice(0, 100)}.` : data.filters?.mode === 'HOT'
         ? `Búsqueda HOT · ${data.members.length}/${data.filters.teammates + 1} jugadores · RS del organizador: ${data.hostScore ?? 'sin registrar'} · ${data.status === 'open' && data.expires > Date.now() ? 'Activa' : 'Terminada'}.`
         : kind === 'profile' ? 'Ficha de jugador. Los datos también están escritos en el mensaje.' : 'Tarjeta THE FINALS. Los datos también están escritos en el mensaje.'));
     payload.components.unshift(gallery);
