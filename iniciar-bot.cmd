@@ -126,9 +126,9 @@ echo Deja esta ventana abierta. Ctrl+C permite detener el bot.
 echo Usa una sola laptop para ejecutar este bot.
 echo.
 if /I "%~1"=="--pruebas" (
-  call npm.cmd run start:test
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\windows-job.ps1 -TestServer
 ) else (
-  call npm.cmd start
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\windows-job.ps1
 )
 if errorlevel 1 goto :error
 pause
