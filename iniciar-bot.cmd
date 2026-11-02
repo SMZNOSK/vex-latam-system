@@ -1,7 +1,19 @@
 @echo off
+rem Ejecutar una copia permite actualizar este archivo sin alterar el script en uso.
+if defined VEX_LAUNCH_COPY goto :launch
+setlocal
+set "VEX_LAUNCH_DIR=%~dp0"
+set "VEX_LAUNCH_COPY=%TEMP%\vex-iniciar-%RANDOM%-%RANDOM%.cmd"
+copy /Y "%~f0" "%VEX_LAUNCH_COPY%" >nul || exit /b 1
+call "%VEX_LAUNCH_COPY%" %*
+set "VEX_LAUNCH_RESULT=%errorlevel%"
+del "%VEX_LAUNCH_COPY%" >nul 2>nul
+exit /b %VEX_LAUNCH_RESULT%
+
+:launch
 setlocal EnableExtensions DisableDelayedExpansion
 title VEX LATAM SYSTEM V1 - Inicio del bot
-cd /d "%~dp0"
+cd /d "%VEX_LAUNCH_DIR%"
 if errorlevel 1 goto :error
 echo VEX LATAM SYSTEM V1 - Preparacion e inicio
 echo.
@@ -57,7 +69,20 @@ if errorlevel 1 (
   echo No pude comprobar data\bot.lock. Deten el bot y revisa ese archivo.
   goto :error
 )
+if not defined VEX_UPDATE_DONE (
+  echo Comprobando actualizaciones del repositorio...
+  node scripts/update-repository.js
+  if errorlevel 10 (
+    echo Reiniciando el arrancador actualizado...
+    set "VEX_UPDATE_DONE=1"
+    set "VEX_REFRESH_DEPS=1"
+    set "VEX_LAUNCH_COPY="
+    call "%VEX_LAUNCH_DIR%iniciar-bot.cmd" %*
+    exit /b
+  )
+)
 echo [1/4] Comprobando paqueterias...
+if defined VEX_REFRESH_DEPS goto :install
 call npm.cmd ls --depth=0 >nul 2>nul
 if errorlevel 1 goto :install
 node --input-type=module -e "await import('discord.js');await import('playwright');await import('sharp');" >nul 2>nul
