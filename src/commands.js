@@ -65,6 +65,8 @@ export const commands = [
       .addIntegerOption(o => o.setName('espera').setDescription('Segundos entre respuestas al mismo usuario').setMinValue(30).setMaxValue(3600))),
   tournamentAdmin(new SlashCommandBuilder().setName('anuncio').setDescription('Abre el formulario para publicar un anuncio')).addChannelOption(channel),
   admin(new SlashCommandBuilder().setName('privadas').setDescription('Crea un anuncio para una partida privada')).addChannelOption(channel),
+  admin(new SlashCommandBuilder().setName('privadas-editar').setDescription('Edita una tarjeta de partida privada publicada'))
+    .addStringOption(o => o.setName('enlace').setDescription('Enlace del mensaje de la tarjeta').setRequired(true)),
   admin(new SlashCommandBuilder().setName('reglas').setDescription('Abre el formulario para publicar las reglas')).addChannelOption(channel),
   admin(new SlashCommandBuilder().setName('embed').setDescription('Crea y administra embeds nativos guardados'))
     .addSubcommand(s => s.setName('crear').setDescription('Crea un embed con un nombre para editarlo después')
