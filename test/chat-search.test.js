@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Collection, MessageType, PermissionsBitField, PermissionFlagsBits as P } from 'discord.js';
 import { Store } from '../src/store.js';
 import { VexBot } from '../src/bot.js';
-import { ChatSearch, lookingForTeam, hasRegion, chatSearchPayload, parseChatSearchTerms } from '../src/chat-search.js';
+import { ChatSearch, lookingForTeam, hasRegion, chatSearchPayload, parseChatSearchTerms, DEFAULT_CHAT_SEARCH_TERMS } from '../src/chat-search.js';
 import { contentIntent, config } from '../src/config.js';
 config.roleCreationApprovedGuilds.g=['THE FINALS RANKS','THE FINALS RÁPIDAS'];
 import { commands } from '../src/commands.js';
@@ -119,8 +119,19 @@ test('lista limpia duplicados normalizados, acepta - para vaciar y rechaza entra
   assert.deepEqual(parseChatSearchTerms('quién juega, QUIEN   JUEGA, +1, + 1, , 1+'), ['quién juega', '+1', '1+']);
   assert.deepEqual(parseChatSearchTerms(' - '), []);
   assert.deepEqual(parseChatSearchTerms(' , , '), []);
-  for (const input of ['.*', '⚡', 'a'.repeat(81), Array.from({ length: 101 }, (_, n) => `p${n}`).join(','), 'a'.repeat(1001)]) {
+  for (const input of ['.*', '⚡', 'a'.repeat(81), Array.from({ length: 251 }, (_, n) => `p${n}`).join(','), 'a'.repeat(4001)]) {
     assert.throws(() => parseChatSearchTerms(input));
+  }
+});
+
+test('banco amplio se puede editar completo y reconoce variantes sin activar conversación casual', () => {
+  assert.ok(DEFAULT_CHAT_SEARCH_TERMS.length >= 150);
+  assert.deepEqual(parseChatSearchTerms(DEFAULT_CHAT_SEARCH_TERMS.join('\n')), DEFAULT_CHAT_SEARCH_TERMS);
+  for (const text of ['¿QUIÉN SE CONECTA?', 'alguien pa rankear', 'buscando dúo', 'LFG NA', 'lf2m', 'necesitamos jugadores', 'se arma squad']) {
+    assert.equal(lookingForTeam(text), true, text);
+  }
+  for (const text of ['me gusta jugar ranked', 'alguien sabe jugar con pesado', 'ya no necesitamos jugadores', 'dejamos de buscar equipo', 'lfg valorant', '```lf2m```']) {
+    assert.equal(lookingForTeam(text), false, text);
   }
 });
 

@@ -3,6 +3,7 @@ import { Drafts } from './drafts.js';
 import { UserError } from './domain.js';
 import { DEFAULT_CHAT_SEARCH_TERMS, parseChatSearchTerms } from './chat-search.js';
 import { privateFlags, safe } from './ui.js';
+import { CHAT_TERMS_MAX_LENGTH, CHAT_TERMS_MAX_COUNT, termsDescription } from './chat-search-terms.js';
 
 export function parseModerationTerms(input) {
   const text = String(input ?? '').trim();
@@ -24,12 +25,12 @@ export class WordLists {
     const terms = configTerms(settings, kind) ?? DEFAULT_CHAT_SEARCH_TERMS;
     const d = this.drafts.create(`words-${kind}`, i.guildId, i.user.id, { kind, channel: i.channelId, base: signature(settings, kind) });
     const input = new TextInputBuilder().setCustomId('lista').setStyle(TextInputStyle.Paragraph)
-      .setRequired(true).setMaxLength(1000).setValue(terms.length ? terms.join('\n') : '-')
+      .setRequired(true).setMaxLength(kind === 'chat' ? CHAT_TERMS_MAX_LENGTH : 1000).setValue(terms.length ? terms.join('\n') : '-')
       .setPlaceholder('Una palabra o frase por línea, o separadas por comas');
     return i.showModal(new ModalBuilder().setCustomId(`words:save:${d.id}`)
       .setTitle(kind === 'chat' ? 'Búsqueda por chat · Palabras' : 'Palabras altisonantes')
       .addLabelComponents(new LabelBuilder().setLabel('Edita la lista completa')
-        .setDescription('Una por línea o con comas. Edita la lista completa; - la vacía. Máx. 100 entradas / 1000 caracteres.')
+        .setDescription(`Una por línea o con comas. - la vacía. Máx. ${kind === 'chat' ? CHAT_TERMS_MAX_COUNT : 100} entradas / ${kind === 'chat' ? CHAT_TERMS_MAX_LENGTH : 1000} caracteres.`)
         .setTextInputComponent(input)));
   }
   async handle(i) {
@@ -52,7 +53,7 @@ export class WordLists {
     this.bot.store.saveSettings(i.guildId, settings);
     this.drafts.remove(d.id);
     const words = new EmbedBuilder().setTitle(kind === 'chat' ? 'Palabras de búsqueda por chat' : 'Palabras altisonantes')
-      .setColor(0xed243b).setDescription(terms.length ? terms.map(safe).join('\n') : 'Lista vacía.')
+      .setColor(0xed243b).setDescription(terms.length ? termsDescription(terms, safe) : 'Lista vacía.')
       .setFooter({ text: 'Solo administradores · Lista guardada' });
     await this.bot.sendPrivate(i, `Lista guardada: **${terms.length} entradas**. ${kind === 'chat' ? 'Ayuda por chat' : 'Filtro'}: **${cfg.enabled ? 'activado' : 'desactivado'}**.`
       + (terms.length && !cfg.enabled ? `\nPara activarlo, usa ${kind === 'chat' ? '/busqueda-chat activar' : '/moderacion activar'}.` : ''), { embeds: [words] });

@@ -8,6 +8,11 @@ export const commands = [
   ...['vxtg','vxltm'].map(clan=>admin(new SlashCommandBuilder().setName(`clan-${clan}-numero-miembros`).setDescription(`Actualiza manualmente el total real de ${clan.toUpperCase()} en THE FINALS`))
     .addIntegerOption(o=>o.setName('total').setDescription('Total real de miembros dentro del juego').setRequired(true).setMinValue(0).setMaxValue(1000))),
   admin(new SlashCommandBuilder().setName('clan').setDescription('Administra solicitudes y miembros de VXTG y VXLTM'))
+    .addSubcommand(s=>s.setName('agregar').setDescription('Da de alta un integrante y publica su bienvenida con mención')
+      .addStringOption(o=>o.setName('clan').setDescription('Clan').setRequired(true).addChoices({name:'VXTG',value:'vxtg'},{name:'VXLTM',value:'vxltm'}))
+      .addUserOption(o=>o.setName('usuario').setDescription('Miembro de Discord').setRequired(true))
+      .addStringOption(o=>o.setName('embark-id').setDescription('Opcional: Jugador#1234; usa su perfil si existe').setMaxLength(70))
+      .addIntegerOption(o=>o.setName('rs').setDescription('RS actuales opcionales; usa su perfil si existe').setMinValue(0).setMaxValue(999999)))
     .addSubcommand(s=>s.setName('ranking').setDescription('Abre el acceso al panel para cargar jugadores y RS sin perfiles')
       .addStringOption(o=>o.setName('clan').setDescription('Clan').setRequired(true).addChoices({name:'VXTG',value:'vxtg'},{name:'VXLTM',value:'vxltm'})))
     .addSubcommand(s=>s.setName('miembros').setDescription('Consulta usuarios Discord, Embark ID y RS de todos los integrantes')

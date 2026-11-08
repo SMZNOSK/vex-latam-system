@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { ChannelType, PermissionFlagsBits as P, PermissionsBitField, EmbedBuilder, ButtonStyle } from 'discord.js';
-import { dataDir } from './config.js';
-import { UserError } from './domain.js';
+import { dataDir, config } from './config.js';
+import { UserError, rankFromRS, validateIdentity } from './domain.js';
+import { currentRS } from './profile-rs.js';
 import { Drafts } from './drafts.js';
 import { PlayerCards } from './player-cards.js';
 import { assertAssignable } from './roles.js';
@@ -93,7 +94,7 @@ export class Clans {
     let message=previous?await channel.messages.fetch(previous).catch(unknown):null;
     if(message&&message.author.id!==this.bot.client.user.id)throw new UserError('La referencia del clan no pertenece al bot.');
     if(!message)message=await this.findMessage(channel,receipt,payload.files?.find(f=>f.name?.startsWith('clan-admission-'))?.name);
-    if(message)return message.edit({...payload,content:payload.content??null});
+    if(message)return message.edit({...payload,content:payload.content??null,allowedMentions:noMentions});
     return channel.send({...payload,nonce:hash(`${channel.id}:${receipt}`).slice(0,25),enforceNonce:true});
   }
   async findMessage(channel,receipt,filename){
@@ -102,7 +103,7 @@ export class Clans {
   panel(guild,clan,force=false){return this.bot.queue(`clan-panel:${guild.id}:${clan}`,()=>this.publishPanel(guild,clan,force));}
   async publishPanel(guild,clan,force=false){
     const cfg=this.settings(guild.id)[clan],members=this.store.members(guild.id,clan),settings=this.bot.store.settings(guild.id);
-    const fingerprint=hash(['clan-poster-v4-warning',clans[clan],cfg.gameCount,members.length,settings.panels?.registro?.channel]);
+    const fingerprint=hash(['clan-poster-v6-mono',clans[clan],cfg.gameCount,members.length,settings.panels?.registro?.channel]);
     if(!force&&cfg.panel?.hash===fingerprint)return;
     const channel=await this.bot.channel(guild,cfg.joinChannel),payload=clanPanel(clan,settings,members.length);
     if(this.bot.renderer){try{payload.files=[{attachment:await this.bot.renderer.render('clan-poster',{clan},1080),name:'clan.png'}];payload.attachments=[];payload.embeds[0].setImage('attachment://clan.png');}catch(e){this.bot.log(e,'Cartel de clan; se conserva el texto');}}
@@ -113,7 +114,7 @@ export class Clans {
   ranking(guild,clan,force=false){return this.bot.queue(`clan-ranking:${guild.id}:${clan}`,()=>this.publishRanking(guild,clan,force));}
   async publishRanking(guild,clan,force=false){
     const cfg=this.settings(guild.id)[clan],manual=this.store.ranking(guild.id,clan);if(!manual)throw new UserError('El ranking manual está pendiente de preparar.');const people=manual.entries;
-    const fingerprint=hash(['clan-ranking-v2-manual',people,cfg.gameCount]);if(!force&&cfg.rankingHash===fingerprint)return;
+    const fingerprint=hash(['clan-ranking-v3-mono',people,cfg.gameCount]);if(!force&&cfg.rankingHash===fingerprint)return;
     const channel=await this.bot.channel(guild,cfg.rankingChannel),pages=Math.max(1,Math.ceil(people.length/15)),references=[];
     for(let page=0;page<pages;page++){
       const slice=people.slice(page*15,(page+1)*15),receipt=clanFooter('Ranking',`${clan}:${page}`);
@@ -141,7 +142,7 @@ export class Clans {
   syncApplication(guild,application){return this.bot.queue(`clan-members:${guild.id}`,()=>this.publishApplication(guild,this.store.get(application.id)));}
   async publishApplication(guild,a){
     if(!a)return;
-    const fingerprint=hash(['clan-application-v4-warning',clans[a.clan].color,a.status,a.actor,a.roleAssigned,a.dmStatus,a.profile,a.availability,a.motivation]);if(a.inboxHash===fingerprint)return;
+    const fingerprint=hash(['clan-application-v4-warning',clans[a.clan].color,a.status,a.actor,a.roleAssigned,a.dmStatus,a.profile,a.availability,a.motivation,a.experience,a.highestRank,a.represent]);if(a.inboxHash===fingerprint)return;
     const channel=await this.inbox(guild),uri=await this.evidence.dataURI(a.evidence);if(!uri)throw new UserError('No se encuentra la captura de esta solicitud. Contacta con el administrador.');
     const payload=applicationPayload(a);payload.files=[{attachment:Buffer.from(uri.split(',')[1],'base64'),name:'evidencia-clan.png'}];
     const m=await this.write(channel,a.inboxMessage,payload,clanFooter('Solicitud',a.id));a.inboxMessage=m.id;a.inboxChannel=channel.id;a.inboxHash=fingerprint;this.store.save(a);
@@ -168,20 +169,32 @@ export class Clans {
       clanInfo(id);const cfg=this.settings(i.guildId)[id];
       if(!i.isButton()||i.channelId!==cfg?.joinChannel||i.message?.id!==cfg.panel?.message||i.message.author.id!==this.bot.client.user.id)throw new UserError('Usa el cartel actualizado del canal de ingreso al clan.');
       if(action==='status')return this.status(i,id);
+      if(id==='vxltm'){
+        await i.deferReply({flags:privateFlags});
+        await this.bot.queue(`clan-members:${i.guildId}`,async()=>{
+          const member=await i.guild.members.fetch({user:i.user.id,force:true});
+          if(Object.keys(clans).some(c=>member.roles.cache.has(this.settings(i.guildId)[c]?.role)))throw new UserError('Ya tienes un rol de clan. Pide al staff que revise tu membresía.');
+          await this.role(i.guild,'vxltm');
+          const raw=this.bot.store.profile(i.guildId,i.user.id);let profile=null;
+          try{profile=raw?clanProfile(raw,'vxltm'):null;}catch{}
+          this.store.joinOpen({guild:i.guildId,user:i.user.id,clan:'vxltm',displayName:member.displayName,profile});
+        });
+        await this.processJobs(i.guild);return this.bot.sendPrivate(i,'Tu ingreso a VXLTM se registró. El rol y la bienvenida se procesan automáticamente; el staff coordinará tu entrada en THE FINALS.');
+      }
       const {profile}=await this.eligible(i.guild,i.user.id,id,false);const d=this.drafts.create('clan-application',i.guildId,i.user.id,{clan:id,channel:i.channelId,profile});
       return i.showModal(clanModal(d,profile));
     }
     if(action==='submit'){
       if(!i.isModalSubmit())throw new UserError('Abre el formulario desde el canal del clan.');
       const d=this.drafts.get(id,i.guildId,i.user.id);if(d.kind!=='clan-application'||d.busy||i.channelId!==d.data.channel||i.channelId!==this.settings(i.guildId)[d.data.clan]?.joinChannel)throw new UserError('Este formulario cambió o ya se está enviando. Abre uno nuevo.');
-      const files=i.fields.getUploadedFiles('evidence',true),availability=i.fields.getTextInputValue('availability').trim(),motivation=i.fields.getTextInputValue('motivation').trim();
-      if(files.size!==1||availability.length>300||motivation.length>450)throw new UserError('Adjunta una sola captura y respeta los límites de los comentarios.');
+      const files=i.fields.getUploadedFiles('evidence',true),experience=i.fields.getTextInputValue('experience').trim(),highestRank=i.fields.getTextInputValue('highestRank').trim(),represent=i.fields.getStringSelectValues('represent')[0],motivation='';
+      if(files.size!==1||!experience||experience.length>200||!highestRank||highestRank.length>150||!['si','si_claro'].includes(represent)||motivation.length>450)throw new UserError('Adjunta una sola captura y respeta los límites de los comentarios.');
       d.busy=true;await i.deferReply({flags:privateFlags});
       try{
         await this.inbox(i.guild);const {profile,member}=await this.eligible(i.guild,i.user.id,d.data.clan);
         if(profile.embarkId!==d.data.profile.embarkId||profile.score!==d.data.profile.score)throw new UserError('Tu Embark ID o RS cambiaron mientras completabas el formulario. Abre uno nuevo con los datos actuales.');
         let evidence;try{evidence=await this.evidence.upload(files.first());}catch(e){if(e instanceof UserError)throw new UserError(e.message.replaceAll('tarjeta','captura de evidencia').replace('tu perfil conserva la anterior.','vuelve a intentarlo.'));throw e;}
-        const a=await this.bot.queue(`clan-members:${i.guildId}`,async()=>{const current=this.profile(i.guildId,i.user.id,d.data.clan);if(current.embarkId!==profile.embarkId||current.score!==profile.score)throw new UserError('Tu perfil cambió. Envía la solicitud con una captura actualizada.');return this.store.submit({guild:i.guildId,user:i.user.id,displayName:member.displayName,clan:d.data.clan,profile:current,evidence,availability,motivation});});
+        const a=await this.bot.queue(`clan-members:${i.guildId}`,async()=>{const current=this.profile(i.guildId,i.user.id,d.data.clan);if(current.embarkId!==profile.embarkId||current.score!==profile.score)throw new UserError('Tu perfil cambió. Envía la solicitud con una captura actualizada.');return this.store.submit({guild:i.guildId,user:i.user.id,displayName:member.displayName,clan:d.data.clan,profile:current,evidence,experience,highestRank,represent,motivation});});
         this.drafts.remove(d.id);let delivered=true;await this.syncApplication(i.guild,a).catch(e=>{delivered=false;this.bot.log(e,'Entregar solicitud de clan; se reintentará');});
         return this.bot.sendPrivate(i,`Solicitud a **${clans[a.clan].tag}** guardada.${delivered?' La recibieron los administradores.':' La entrega al receptor privado está pendiente y se reintentará automáticamente.'}${clanRSWarning(a.profile,a.clan)?'\n⚠️ Tu RS actual está por debajo de los 20,000 recomendados; el staff recibió la advertencia y decidirá tu ingreso.':''}\nTu evidencia permanece privada. Puedes revisar el estado con **Mi solicitud**.`);
       }finally{d.busy=false;}
@@ -205,7 +218,7 @@ export class Clans {
         this.store.approve(id,i.user.id);
       });
       await this.processJobs(i.guild);await this.syncApplication(i.guild,this.store.get(id));
-      return this.bot.sendPrivate(i,action==='approve'?'Solicitud aprobada. El rol, el mensaje privado y el anuncio se procesan de forma persistente; los pasos pendientes se reintentan.':'Solicitud rechazada. La persona puede consultar el estado en Mi solicitud.');
+      return this.bot.sendPrivate(i,action==='approve'?'Solicitud aprobada. El rol, el mensaje privado y el anuncio se procesan de forma persistente; los pasos pendientes se reintentan.':'Solicitud rechazada. El mensaje privado se procesa y la persona puede consultar el estado en Mi solicitud.');
     }
     if(action==='list'){const [clan,user,page]=rest;if(user!==i.user.id)throw new UserError('Abre tu propia lista desde /clan.');return this.list(i,id,clan,Number(page)||0);}
     if(action==='remove'){
@@ -217,9 +230,9 @@ export class Clans {
   }
   async role(guild,clan){const id=this.settings(guild.id)[clan]?.role,role=id?await guild.roles.fetch(id).catch(e=>{if(e.code===10011)return null;throw e;}):null;if(!role){this.pending.add(guild.id);throw new UserError('Revisa el rol del clan: debe existir.');}assertAssignable(role,await guild.members.fetchMe());return role;}
   async admission(guild,application,{notify=false,existingOnly=false}={}){
-    const a=this.store.get(application.id),channel=await this.bot.channel(guild,this.settings(guild.id)[a.clan].joinChannel);
+    const a=this.store.get(application.id),target=existingOnly?(a.announcementChannel??this.settings(guild.id)[a.clan].joinChannel):(guild.id===config.productionGuildId?config.productionChannels.clanInformation:this.settings(guild.id)[a.clan].joinChannel),channel=await this.bot.channel(guild,target);
     const receipt=clanFooter('Nuevo integrante',a.id),filename=`clan-admission-${a.id}.png`;
-    let previous=a.announcement;
+    let previous=a.announcementChannel===channel.id?a.announcement:null;
     if(existingOnly){
       const found=previous?await channel.messages.fetch(previous).catch(unknown):await this.findMessage(channel,receipt,filename);
       if(!found){a.announcementMissingAt=Date.now();this.store.save(a);return null;}
@@ -228,25 +241,36 @@ export class Clans {
     const member=await guild.members.fetch({user:a.user,force:true}).catch(unknown);if(!member)return null;
     const data={...(this.bot.memberCards?await this.bot.memberCards.data(member):{displayName:member.displayName}),clan:a.clan,...a.profile};
     const embed=new EmbedBuilder().setColor(clans[a.clan].color).setTitle(`Nuevo integrante de ${clans[a.clan].tag}`)
-      .setDescription(`¡Bienvenido, <@${a.user}>!\n**${safe(a.profile.embarkId)}** · ${a.profile.score.toLocaleString('es-MX')} RS · ${safe(a.profile.rank)}\n\n**${clans[a.clan].motto}**`)
+      .setDescription(`¡Bienvenido, <@${a.user}>!\n**${safe(a.profile.embarkId)}** · ${a.profile.score==null?'RS sin registrar':a.profile.score.toLocaleString('es-MX')+' RS'} · ${safe(a.profile.rank)}\n\n**${clans[a.clan].motto}**`)
       .setFooter({text:`VEX LATAM · ${clans[a.clan].tag} · Ingreso aprobado`});
-    const payload={embeds:[embed],attachments:[],allowedMentions:notify?{...noMentions,users:[a.user]}:noMentions};
+    const payload={content:`¡Bienvenido al club, <@${a.user}>!`,embeds:[embed],attachments:[],allowedMentions:notify?{...noMentions,users:[a.user]}:noMentions};
     let rendered=false;
     if(this.bot.renderer){try{payload.files=[{attachment:await this.bot.renderer.render('clan-admission',data,1080),name:filename}];embed.setImage(`attachment://${filename}`);rendered=true;}catch(e){if(existingOnly)throw e;this.bot.log(e,'Tarjeta de ingreso pendiente; se conserva el anuncio de texto');}}
     // El recibo heredado permite recuperar incluso un envío sin imagen tras una caída.
     if(!rendered)embed.setFooter({text:receipt});
     const message=await this.write(channel,previous,payload,receipt);
-    a.announcement=message.id;a.announcementChannel=channel.id;a.announcementVersion=rendered?2:0;this.store.save(a);
+    a.announcement=message.id;a.announcementChannel=channel.id;a.announcementVersion=rendered?3:0;this.store.save(a);
     return message;
   }
   async refreshAdmissions(guild){
     for(const a of this.store.applications(guild.id)){
-      if(a.status!=='approved'||!a.roleAssigned||a.announcementVersion===2||Date.now()-(a.announcementMissingAt??0)<3600000)continue;
+      if(a.status!=='approved'||!a.roleAssigned||a.announcementVersion===3||Date.now()-(a.announcementMissingAt??0)<3600000)continue;
       await this.bot.queue(`clan-members:${guild.id}`,async()=>{
         const fresh=this.store.get(a.id);
-        if(fresh?.status==='approved'&&fresh.announcementVersion!==2)await this.admission(guild,fresh,{existingOnly:true});
+        if(fresh?.status==='approved'&&fresh.announcementVersion!==3)await this.admission(guild,fresh,{existingOnly:true});
       }).catch(e=>this.bot.log(e,'Actualizar tarjeta de ingreso existente; se reintentará'));
     }
+  }
+  async sendDecision(member,a,job){
+    try{
+      const dm=await member.createDM(),approved=a.status==='approved',receipt=clanFooter(approved?'Aprobación':'Rechazo',a.id);
+      const description=approved?`Embark ID: **${safe(a.profile.embarkId)}**\nEl staff VEXINK (fundador) se va a comunicar contigo. También puedes enviar una solicitud al club y te aceptamos rápido.`:`Embark ID: **${safe(a.profile.embarkId)}**\nGracias por tu interés. Puedes volver a solicitar ingreso cuando cumplas los requisitos.`;
+      const embed=new EmbedBuilder().setColor(clans[a.clan].color).setTitle(`Solicitud ${approved?'aprobada':'rechazada'} · ${clans[a.clan].tag}`).setDescription(description).setFooter({text:receipt});
+      const payload={embeds:[embed],allowedMentions:noMentions};
+      if(this.bot.renderer){try{payload.files=[{attachment:await this.bot.renderer.render('clan-decision',{clan:a.clan,status:a.status,displayName:a.displayName,user:a.user,...a.profile},1080),name:`clan-decision-${a.id}.png`}];embed.setImage(`attachment://clan-decision-${a.id}.png`);}catch(e){this.bot.log(e,'Tarjeta de decisión; se enviará texto');}}
+      const message=await this.write(dm,null,payload,receipt);job.dmMessage=message.id;a.dmStatus='sent';
+    }catch(e){if(![50007,50278].includes(e.code))throw e;a.dmStatus='blocked';}
+    job.dmDone=true;this.store.save(a);this.store.job(job);
   }
   async processJobs(guild){
     for(const entry of this.store.jobs(guild.id))await this.bot.queue(`clan-members:${guild.id}`,async()=>{
@@ -256,15 +280,12 @@ export class Clans {
         if(job.kind==='remove'){
           const role=await this.role(guild,job.clan);if(member?.roles.cache.has(role.id))await member.roles.remove(role,'Retirada de membresía del clan');this.store.finish(job);return;
         }
+        if(job.kind==='reject'){const a=this.store.get(job.application);if(!a||a.status!=='rejected'){this.store.finish(job);return;}const recipient=member??await this.bot.client.users.fetch(job.user);if(!job.dmDone)await this.sendDecision(recipient,a,job);this.store.finish(job);return;}
         const membership=this.store.member(guild.id,job.user),a=this.store.get(job.application);
         if(!membership||membership.application!==job.application||!member){this.store.finish(job);return;}
         const other=Object.keys(clans).find(c=>c!==job.clan&&member.roles.cache.has(this.settings(guild.id)[c]?.role));if(other)throw new UserError('El integrante tiene el rol del otro clan. Revisa su membresía.');
         if(!job.roleDone){const role=await this.role(guild,job.clan);if(!member.roles.cache.has(role.id))await member.roles.add(role,'Solicitud de clan aprobada por un administrador');job.roleDone=true;membership.rolePending=false;this.store.saveMember(membership);a.roleAssigned=true;this.store.save(a);this.store.job(job);}
-        if(!job.dmDone){
-          try{const dm=await member.createDM(),receipt=clanFooter('Aprobación',a.id);const message=await this.write(dm,null,{embeds:[new EmbedBuilder().setColor(clans[a.clan].color).setTitle(`¡Tu solicitud a ${clans[a.clan].tag} fue aprobada!`).setDescription(`Embark ID: **${safe(a.profile.embarkId)}**\nYa tienes tu rol de clan en Discord. El staff coordinará contigo la invitación dentro de THE FINALS.\n\n**${clans[a.clan].motto}**`).setFooter({text:receipt})],allowedMentions:noMentions},receipt);job.dmMessage=message.id;a.dmStatus='sent';}
-          catch(e){if(![50007,50278].includes(e.code))throw e;a.dmStatus='blocked';}
-          job.dmDone=true;this.store.save(a);this.store.job(job);
-        }
+        if(!job.dmDone){await this.sendDecision(member,a,job);}
         if(!job.announcement){
           const message=await this.admission(guild,a,{notify:true});if(!message)throw new UserError('No se pudo publicar el anuncio del integrante.');
           job.announcement=message.id;this.store.job(job);
@@ -277,7 +298,7 @@ export class Clans {
     this.bot.mailboxes.assertAdminCommand(i);clanInfo(clan);if(!['miembros','solicitudes'].includes(kind))throw new UserError('Lista de clanes desconocida.');await this.bot.ackCard(i);
     const entries=kind==='miembros'?this.roster(i.guildId,clan):this.store.applications(i.guildId).filter(a=>a.clan===clan&&a.status==='pending').sort((a,b)=>b.profile.score-a.profile.score||a.created-b.created);
     const pages=Math.max(1,Math.ceil(entries.length/12));page=Math.max(0,Math.min(page,pages-1));
-    const lines=entries.slice(page*12,(page+1)*12).map((p,n)=>`${page*12+n+1}. <@${p.user}> · ID: ${p.user}\n**${safe(p.embarkId??p.profile.embarkId)}** · ${(p.score??p.profile.score).toLocaleString('es-MX')} RS${kind==='solicitudes'&&clanRSWarning(p.profile,clan)?' · ⚠️ RS por debajo de lo recomendado':''}${p.inboxMessage?` · [Revisar](https://discord.com/channels/${i.guildId}/${p.inboxChannel}/${p.inboxMessage})`:''}`);
+    const lines=entries.slice(page*12,(page+1)*12).map((p,n)=>`${page*12+n+1}. <@${p.user}> · ID: ${p.user}\n**${safe(p.embarkId??p.profile.embarkId)}** · ${(p.score??p.profile.score)==null?'RS sin registrar':(p.score??p.profile.score).toLocaleString('es-MX')+' RS'}${kind==='solicitudes'&&clanRSWarning(p.profile,clan)?' · ⚠️ RS por debajo de lo recomendado':''}${p.inboxMessage?` · [Revisar](https://discord.com/channels/${i.guildId}/${p.inboxChannel}/${p.inboxMessage})`:''}`);
     return this.bot.replyCard(i,card(`${clans[clan].tag} · ${kind} · ${page+1}/${pages}`,`**${entries.length} ${kind}**\n\n${lines.join('\n\n')||'No hay registros.'}`,pages>1?[row(button(`clan:list:${kind}:${clan}:${i.user.id}:${page-1}`,'Anterior',undefined,page===0),button(`clan:list:${kind}:${clan}:${i.user.id}:${page+1}`,'Siguiente',undefined,page===pages-1))]:[]));
   }
   async command(i){
@@ -289,6 +310,30 @@ export class Clans {
       return this.bot.sendPrivate(i,`Total real de ${clans[clan].tag} en THE FINALS actualizado a **${total}**. Registrados por el bot: **${this.store.members(i.guildId,clan).length}**.`);
     }
     const sub=i.options.getSubcommand(),clan=i.options.getString('clan');clanInfo(clan);
+    if(sub==='agregar'){
+      const user=i.options.getUser('usuario');
+      if(user.bot)throw new UserError('Selecciona una persona, no un bot.');
+      await i.deferReply({flags:privateFlags});
+      const member=await i.guild.members.fetch({user:user.id,force:true}).catch(unknown);
+      if(!member)throw new UserError('Esa persona debe estar dentro del servidor.');
+      await this.role(i.guild,clan);
+      const other=Object.keys(clans).find(c=>c!==clan&&member.roles.cache.has(this.settings(i.guildId)[c]?.role));
+      if(other)throw new UserError('Esta persona tiene el rol del otro clan. Revisa su membresía antes de agregarla.');
+      const a=await this.bot.queue(`clan-members:${i.guildId}`,()=>{
+        const saved=this.bot.store.profile(i.guildId,user.id),inputId=i.options.getString('embark-id'),inputRS=i.options.getInteger('rs');
+        const embarkId=inputId?.trim()||saved?.embarkId||'Sin registrar';
+        // Un Embark ID distinto no hereda los RS de la cuenta anterior.
+        const sameIdentity=saved&&embarkKey(saved.embarkId)===embarkKey(embarkId);
+        const score=inputRS??(sameIdentity?currentRS(saved):null);
+        if(embarkId!=='Sin registrar')validateIdentity({embarkId,score:score??0});
+        const position=sameIdentity&&inputRS==null&&saved.rankSource==='finalstracker'?saved.leaderboardPosition:null;
+        const profile={embarkId,score,rank:score==null?'Sin registrar':rankFromRS(score,position)};
+        return this.store.addManual({guild:i.guildId,user:user.id,clan,displayName:member.displayName,profile},i.user.id);
+      });
+      await this.processJobs(i.guild);
+      const admitted=this.store.get(a.id),pending=!admitted.roleAssigned||!admitted.announcement||!admitted.dmStatus;
+      return this.bot.sendPrivate(i,`Alta manual registrada: <@${user.id}> en **${clans[clan].tag}**. Se procesan el rol, el mensaje privado y la bienvenida con mención, avatar y RS disponibles.${pending?' Hay pasos pendientes; se reintentan automáticamente.':''}\nEl total manual de THE FINALS se actualiza por separado.`);
+    }
     if(sub==='ranking')return this.bot.sendPrivate(i,`Edita la lista completa de **${clans[clan].tag}** en <#${this.settings(i.guildId).channels.rankingAdmin}>. Usa el botón Editar ${clans[clan].tag}; no requiere perfiles del bot.`);
     if(['miembros','solicitudes'].includes(sub))return this.list(i,sub,clan);
     const user=i.options.getUser('usuario'),reason=(i.options.getString('motivo')??'Retirada por administración').trim();
@@ -305,7 +350,7 @@ export class Clans {
     if(this.pending.has(guild.id)||!cfg.channels?.inbox||!guild.channels.cache.has(cfg.channels?.rankingAdmin)||!Object.keys(clans).every(c=>guild.channels.cache.has(cfg[c]?.joinChannel)&&guild.channels.cache.has(cfg[c]?.rankingChannel)))await this.setup(guild);
     await this.processJobs(guild);
     await this.refreshAdmissions(guild);
-    for(const a of this.store.applications(guild.id))await this.syncApplication(guild,a).catch(e=>this.bot.log(e,'Actualizar solicitud de clan'));
+    for(const a of this.store.applications(guild.id).filter(a=>!a.automatic&&!a.manual))await this.syncApplication(guild,a).catch(e=>this.bot.log(e,'Actualizar solicitud de clan'));
     for(const clan of Object.keys(clans)){await this.panel(guild,clan);await this.ranking(guild,clan);}
     await this.rankingEditor.panel(guild);
   }

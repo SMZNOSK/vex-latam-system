@@ -17,7 +17,7 @@ export const row = (...buttons) => new ActionRowBuilder().addComponents(...butto
 const display = content => new TextDisplayBuilder().setContent(content);
 
 export function card(title, body, rows = [], extra = '') {
-  const container = new ContainerBuilder().setAccentColor(0xed243b)
+  const container = new ContainerBuilder().setAccentColor(0xf5f5f0)
     .addTextDisplayComponents(display(`## ${title}\n${body}${extra ? `\n\n${extra}` : ''}`));
   for (const r of rows) container.addActionRowComponents(r);
   return { components: [container], flags: MessageFlags.IsComponentsV2, allowedMentions: noMentions };
@@ -29,14 +29,14 @@ export function panelPayload(type, settings) {
     + 'El rango usa tu **RS actual**; tu récord se conserva por separado. Para cambiar solo tus puntos usa **Actualizar RS**: se guarda al enviar. El asistente completo requiere pulsar Guardar perfil.\n'
     + 'El perfil es opcional para acceder al servidor y crear equipos HOT. Regístralo para mostrar tus datos y usar búsquedas con filtros.\n'
     + 'La foto es opcional. Tu tarjeta, Embark ID y RS podrán aparecer en equipos y en el **top 10 de la comunidad**. Al guardar recibes **Verificado**, **THE FINALS** y el rol de tu patrocinador, y aceptas aparecer en sugerencias.', [
-      row(button('profile:edit', 'Completar / editar perfil', ButtonStyle.Primary), button('profile:view', 'Ver mi perfil'), button('profile:rs','Actualizar RS')),
+      row(button('profile:edit', 'Completar / editar perfil'), button('profile:view', 'Ver mi perfil'), button('profile:rs','Actualizar RS')),
       row(button('private:clear', 'Limpiar mis mensajes')),
     ], 'La consulta de clasificación envía tu Embark ID a [FINALSTRACKER](https://finalstracker.net), un servicio comunitario no oficial. No consulta habilidades ni verifica que la cuenta te pertenezca.');
   if (type === 'buscar') return card(`🏆 ${SQUAD_NAME} · THE FINALS`,
     '**Ranked** · Filtra por puntos RS, clase y especializaciones.\n**Chill** · Encuentra compañía sin filtro de RS.\n'
     + `Las solicitudes se publican en ${settings.teamsChannel ? `<#${settings.teamsChannel}>` : '**#equipos**'}.\n`
     + 'Necesitas un perfil completo y activo. Recupera los controles privados con **Mis equipos**. El organizador puede crear una sala de voz temporal y los integrantes entrar desde ese panel.', [
-      row(button('search:create', 'Buscar compañeros', ButtonStyle.Success), button('search:mine', 'Mis equipos')),
+      row(button('search:create', 'Buscar compañeros'), button('search:mine', 'Mis equipos')),
       row(button('private:clear', 'Limpiar mis mensajes')),
     ]);
   if (type === 'roles') {

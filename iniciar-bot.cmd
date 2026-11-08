@@ -12,9 +12,10 @@ exit /b %VEX_LAUNCH_RESULT%
 
 :launch
 setlocal EnableExtensions DisableDelayedExpansion
-title VEX LATAM SYSTEM - Inicio del bot
+title VEX LATAM SQUAD - Inicio del bot
 cd /d "%VEX_LAUNCH_DIR%"
 if errorlevel 1 goto :error
+if /I "%~1"=="--instalar-git" goto :gitInstallOnly
 where node >nul 2>nul
 if errorlevel 1 (
   echo Instala Node.js 24 o superior desde https://nodejs.org
@@ -27,8 +28,9 @@ if errorlevel 1 (
   goto :error
 )
 for /f "delims=" %%V in ('node -p "require('./package.json').version"') do set "VEX_VERSION=%%V"
-title VEX LATAM SYSTEM v%VEX_VERSION% - Inicio del bot
-echo VEX LATAM SYSTEM v%VEX_VERSION% - Preparacion e inicio
+title VEX LATAM SQUAD v%VEX_VERSION% - Inicio del bot
+echo VEX LATAM SQUAD v%VEX_VERSION% - Preparacion e inicio
+echo No somos solo jugadores, somos VEX.
 echo.
 where npm.cmd >nul 2>nul
 if errorlevel 1 (
@@ -71,6 +73,7 @@ if errorlevel 1 (
   echo No pude comprobar data\bot.lock. Deten el bot y revisa ese archivo.
   goto :error
 )
+call :prepareGit
 if not defined VEX_UPDATE_DONE (
   echo Comprobando actualizaciones del repositorio...
   node scripts/update-repository.js
@@ -141,3 +144,24 @@ echo.
 echo No se completo el inicio. Corrige lo indicado y vuelve a abrir iniciar-bot.cmd.
 pause
 exit /b 1
+
+:prepareGit
+set "VEX_GIT_PATH="
+for /f "delims=" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\prepare-git.ps1 -PrintPath') do set "VEX_GIT_PATH=%%G"
+if defined VEX_GIT_PATH exit /b 0
+echo Git permite descargar las actualizaciones del bot.
+choice /C IC /N /M "[I] Instalar Git  [C] Continuar con la version local: "
+if errorlevel 2 exit /b 0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\prepare-git.ps1 -Install
+if errorlevel 1 (
+  echo Git no quedo disponible. Se continuara con la version local del bot.
+  exit /b 0
+)
+for /f "delims=" %%G in ('powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\prepare-git.ps1 -PrintPath') do set "VEX_GIT_PATH=%%G"
+exit /b 0
+
+:gitInstallOnly
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\prepare-git.ps1 -Install
+set "VEX_GIT_RESULT=%errorlevel%"
+pause
+exit /b %VEX_GIT_RESULT%

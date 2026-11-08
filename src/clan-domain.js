@@ -6,7 +6,7 @@ export const clans = Object.freeze({
   vxtg: { id:'vxtg', tag:'VXTG', name:'VXTG | VEXLATAM', recommendedRS:20000, color:0xf5f5f5,
     motto:'Competimos para dejar huella.',
     description:'Club competitivo de THE FINALS enfocado en el rendimiento, la coordinación, el trabajo en equipo y el crecimiento competitivo.\n\nDurante la Temporada 11, VXTG consiguió un resultado histórico: TOP 3 de LATAM y TOP 48 GLOBAL, consolidándose entre los clubes competitivos más destacados de la comunidad hispanohablante.\n\nNuestro objetivo es seguir creciendo, alcanzar nuevas metas y conseguir reconocimiento internacional a través de nuestros resultados, la organización y el compromiso de nuestros jugadores.\n\nNo buscamos ser los reyes, sino demostrar nuestro nivel y ganarnos un lugar entre los mejores.' },
-  vxltm: { id:'vxltm', tag:'VXLTM', name:'VEX LATAM SQUAD | VXLTM', recommendedRS:0, color:0xed243b,
+  vxltm: { id:'vxltm', tag:'VXLTM', name:'VEX LATAM SQUAD | VXLTM', recommendedRS:0, color:0xf5f5f5,
     motto:'Nuestra casa, nuestra comunidad.',
     description:'Comunidad hispanohablante dedicada a THE FINALS, creada para reunir jugadores, formar equipos y fortalecer la comunidad competitiva y casual de la región.\n\nSomos un espacio para encontrar compañeros, compartir experiencias, organizar partidas y eventos, y disfrutar del juego con un ambiente de respeto, colaboración y la menor toxicidad posible.\n\nMás que un grupo de jugadores, somos una comunidad que crece unida y busca dejar huella en THE FINALS.' },
 });
@@ -45,6 +45,6 @@ export function clanRoster(store, guild, members) {
   return members.map(member=>{
     const profile=store.profile(guild,member.user),current=Number.isInteger(profile?.score)&&embarkKey(profile.embarkId)===embarkKey(member.profile.embarkId),p=current?profile:member.profile;
     return {...member,embarkId:p.embarkId,score:p.score,
-      rank:rankFromRS(p.score,p.rankSource==='finalstracker'?p.leaderboardPosition:null),lastApproved:!current};
+      rank:p.score==null?'Sin registrar':rankFromRS(p.score,p.rankSource==='finalstracker'?p.leaderboardPosition:null),lastApproved:!current};
   }).sort((a,b)=>b.score-a.score||a.embarkId.localeCompare(b.embarkId,'es')||a.user.localeCompare(b.user));
 }

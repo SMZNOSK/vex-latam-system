@@ -7,10 +7,12 @@ import { getSponsor } from './sponsors.js';
 import { tournamentDesign, tournamentCSS } from './tournament-design.js';
 import { memberCardHTML } from './member-card-design.js';
 import { clanHTML } from './clan-design.js';
+import { decisionHTML } from './clan-decision-design.js';
 import { currentRS, recordRS } from './profile-rs.js';
 import { profileCSS } from './profile-design.js';
 import { privateMatchHTML } from './private-match-design.js';
 import { guestSearchHTML } from './guest-search-design.js';
+import { squadPanelHTML } from './squad-design.js';
 
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const fmt = value => value == null ? 'Pendiente' : Number(value).toLocaleString('es-MX');
@@ -21,7 +23,7 @@ function rankBadge(rank) {
 }
 function header() {
   const vex = vexLogo(), finals = finalsLogo();
-  return `<header>${vex ? `<div class="brand-lockup"><span class="vex-mark"><img src="${vex}" alt="Logo de VEX LATAM" decoding="sync"></span><span class="brand-name">VEX LATAM<small>COMUNIDAD THE FINALS</small></span></div>`
+  return `<header>${vex ? `<div class="brand-lockup"><span class="vex-mark"><img src="${vex}" alt="Logo de VEX LATAM" decoding="sync"></span><span class="brand-name">VEX LATAM SQUAD<small>COMUNIDAD THE FINALS</small></span></div>`
     : '<span class="brand">VEX<b> /</b></span>'}${finals ? `<div class="finals-lockup"><img class="finals-logo" src="${finals}" alt="" decoding="sync"><span>THE<br>FINALS</span></div>` : '<span class="game">THE FINALS</span>'}</header>`;
 }
 const classIcon = value => `<span class="class-icon">${value === 'Ligero' ? '↯' : value === 'Mediano' ? '✚' : value === 'Pesado' ? '⬢' : '◈'}</span>`;
@@ -51,9 +53,11 @@ function roster(data) {
 }
 export function template(kind, data, width = 720, font = '') {
   if (!Number.isInteger(width) || width < 300 || width > 1440) throw new RangeError('Ancho de tarjeta inválido');
+  if (['registro', 'buscar'].includes(kind)) return squadPanelHTML(kind, width);
   if (kind === 'guest-search') return guestSearchHTML(data, width);
   if (kind === 'private-match') return privateMatchHTML(data, width);
   if (['welcome', 'farewell'].includes(kind)) return memberCardHTML(kind, data, width, font);
+  if (kind === 'clan-decision') return decisionHTML(data, width);
   if (['clan-poster', 'clan-ranking', 'clan-admission'].includes(kind)) return clanHTML(kind, data, width);
   const sponsor = ['profile', 'team'].includes(kind) ? getSponsor(data.sponsorId) : null;
   let title, subtitle, body, category;
@@ -123,7 +127,7 @@ export function template(kind, data, width = 720, font = '') {
     .finals-lockup{display:flex;align-items:center;gap:8px;flex:none;color:#fff}.finals-lockup .finals-logo{width:54px;height:54px;object-fit:contain}.finals-lockup>span{font:25px/.9 FinalsDisplay,Arial,sans-serif;letter-spacing:1px}.profile-card .finals-lockup .finals-logo{width:42px;height:42px}.profile-card .finals-lockup>span{font-size:23px}
     @media(max-width:500px){.finals-lockup .finals-logo,.profile-card .finals-lockup .finals-logo{width:33px;height:33px}.finals-lockup>span,.profile-card .finals-lockup>span{font-size:20px;letter-spacing:.3px}.finals-lockup{gap:5px}}
     ${kind==='profile'?profileCSS:''}
-    </style><main class="canvas${kind==='profile'?' profile-card':''}${kind === 'tournament-poster' ? ' poster-wide' : ''}${sponsor ? ` theme-${sponsor.id}` : ''}">${header()}${kind==='profile'?'':`${sponsorBanner(sponsor?.id)}<span class="eyebrow">${category}</span><h1>${escapeHTML(title)}</h1><p class="subtitle">${escapeHTML(subtitle)}</p>`}${body}${kind==='profile'?sponsorBanner(sponsor?.id,{compact:true}):''}<footer><span>VEX LATAM${kind==='profile'?'':' SYSTEM'}${sponsor ? ` · ${sponsor.label}` : ''}</span><span>${kind === 'profile' ? 'THE FINALS' : 'COMUNIDAD · EQUIPO'}</span></footer></main></html>`;
+    </style><main class="canvas${kind==='profile'?' profile-card':''}${kind === 'tournament-poster' ? ' poster-wide' : ''}${sponsor ? ` theme-${sponsor.id}` : ''}">${header()}${kind==='profile'?'':`${sponsorBanner(sponsor?.id)}<span class="eyebrow">${category}</span><h1>${escapeHTML(title)}</h1><p class="subtitle">${escapeHTML(subtitle)}</p>`}${body}${kind==='profile'?sponsorBanner(sponsor?.id,{compact:true}):''}<footer><span>VEX LATAM SQUAD${sponsor ? ` · ${sponsor.label}` : ''}</span><span>${kind === 'profile' ? 'THE FINALS' : 'COMUNIDAD · EQUIPO'}</span></footer></main></html>`;
 }
 
 function leaderboardBody(players) {

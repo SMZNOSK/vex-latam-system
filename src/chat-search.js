@@ -6,6 +6,8 @@ import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 import { parseEmoji } from './reaction-roles.js';
 import { ALL_CLASSES, classes } from './catalog.js';
 import { noMentions, safe, row, button } from './ui.js';
+import { DEFAULT_CHAT_SEARCH_TERMS, CHAT_TERMS_MAX_LENGTH, CHAT_TERMS_MAX_COUNT, termsDescription } from './chat-search-terms.js';
+export { DEFAULT_CHAT_SEARCH_TERMS } from './chat-search-terms.js';
 
 const normalize = text => String(text ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 export const chatSourceMatches = (cfg, channel) => (cfg?.channels?.length ? cfg.channels : [cfg?.channel]).includes(channel);
@@ -13,17 +15,16 @@ export const chatSourceMatches = (cfg, channel) => (cfg?.channels?.length ? cfg.
 export const searchText = text => normalize(String(text ?? '').replace(/^\s*>>>[\s\S]*/m, ' ').replace(/```[\s\S]*?```|`[^`]*`|^\s*>.*$/gm, ' ')
   .replace(/https?:\/\/\S+|<[^>]+>/g, ' ').replace(/[^\p{L}\p{N}+\s]/gu, ' ').replace(/\s+/g, ' ').trim());
 
-export const DEFAULT_CHAT_SEARCH_TERMS = Object.freeze([
-  'quién juega', 'quién para jugar', 'alguien para jugar', 'alguien para ranks', 'alguien para rápidas',
-  'busco equipo', 'buscamos equipo', 'busco team', 'busco squad', 'busco compañero',
-  'me falta uno', 'nos faltan dos', 'a quién le falta uno', '+1', '+2', 'alguien', 'alguien disponible',
-]);
 const keywordText = text => searchText(text).replace(/\+\s+(\d+)\b/g, '+$1');
+const matchesTerms = (content, terms) => {
+  const words = ` ${keywordText(content)} `;
+  return terms.some(term => { const key = keywordText(term); return key && words.includes(` ${key} `); });
+};
 
 export function parseChatSearchTerms(input) {
   const text = String(input ?? '').trim();
   if (text === '-') return [];
-  if (text.length > 1000) throw new UserError('La lista admite hasta 1000 caracteres.');
+  if (text.length > CHAT_TERMS_MAX_LENGTH) throw new UserError(`La lista admite hasta ${CHAT_TERMS_MAX_LENGTH} caracteres.`);
   const terms = [], seen = new Set();
   for (const term of text.split(/[,\r\n]+/u).map(item => item.trim()).filter(Boolean)) {
     const key = keywordText(term);
@@ -31,7 +32,7 @@ export function parseChatSearchTerms(input) {
     if (seen.has(key)) continue;
     terms.push(term); seen.add(key);
   }
-  if (terms.length > 100) throw new UserError('Usa como máximo 100 palabras o frases.');
+  if (terms.length > CHAT_TERMS_MAX_COUNT) throw new UserError(`Usa como máximo ${CHAT_TERMS_MAX_COUNT} palabras o frases.`);
   return terms;
 }
 
@@ -39,12 +40,12 @@ export function lookingForTeam(content, terms) {
   const text = searchText(content);
   if (/\+\s*\d+\s*[=+*/\-]/.test(String(content))) return false;
   if (!text || /\b(?:helldivers|arc raiders|rocket league|valorant|fortnite|overwatch|apex|warzone|minecraft)\b/.test(text)) return false;
-  if (/\b(?:ya (?:estamos|somos) completos|equipo completo|ya encontre equipo|(?:ya )?no (?:busco|buscamos|quiero jugar|voy a jugar|puedo jugar))\b/.test(text)) return false;
+  if (/\b(?:ya (?:estamos|somos) completos|equipo completo|ya encontre equipo|(?:ya )?no (?:busco|buscamos|necesito|necesitamos|quiero jugar|voy a jugar|puedo jugar)|deje de buscar|dejamos de buscar)\b/.test(text)) return false;
   if (Array.isArray(terms)) {
-    const words = ` ${keywordText(content)} `;
-    return terms.some(term => { const key = keywordText(term); return key && words.includes(` ${key} `); });
+    return matchesTerms(content, terms);
   }
-  return /\b(?:quien(?:es)?|alguien|alguno[sa]?) (?:para |pa )?(?:juega[n]?|jugar|le entra|se apunta|para (?:rankeds?|ranks?|rapidas|casuales))\b/.test(text)
+  return matchesTerms(content, DEFAULT_CHAT_SEARCH_TERMS)
+    || /\b(?:quien(?:es)?|alguien|alguno[sa]?) (?:para |pa )?(?:juega[n]?|jugar|le entra|se apunta|para (?:rankeds?|ranks?|rapidas|casuales))\b/.test(text)
     || /\b(?:busco|buscamos|buscando|se busca[n]?|necesito|necesitamos) (?:(?:un[oa]?|dos|[12]) )?(?:equipo|team|squad|duo|trio|companeros?|gente|jugadores?|alguien)\b/.test(text)
     || /\b(?:(?:a )?quien le|me|nos|les) falta[n]? (?:un[oa]?|dos|[12])\b/.test(text)
     || /\b(?:alguien|quien) (?:para|pa) (?:unas? |unos? )?(?:rankeds?|ranks?|rapidas|casuales|partidas|the finals|finals)\b/.test(text)
@@ -191,7 +192,7 @@ export class ChatSearch {
     const label = id => id && i.guild.roles.cache.has(id) ? `<@&${id}>` : 'pendiente';
     const custom = Array.isArray(cfg.terms), activeTerms = custom ? cfg.terms : DEFAULT_CHAT_SEARCH_TERMS;
     const words = new EmbedBuilder().setTitle('Palabras y frases activadoras').setColor(0xed243b)
-      .setDescription(activeTerms.length ? activeTerms.map(safe).join(', ') : 'Ninguna. Configura una lista antes de activar la ayuda.')
+      .setDescription(activeTerms.length ? termsDescription(activeTerms, safe) : 'Ninguna. Configura una lista antes de activar la ayuda.')
       .setFooter({ text: custom ? 'Lista personalizada: solo estas palabras o frases activan la respuesta.'
         : 'Frases predeterminadas: también se reconocen variantes habituales de búsqueda de equipo.' });
     return this.bot.sendPrivate(i, `Ayuda de búsqueda por chat: **${cfg.enabled ? 'activada' : 'desactivada'}**.\n`

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { UserError } from './domain.js';
-import { embarkKey, parseManualRanking, manualRankingText } from './clan-domain.js';
+import { embarkKey, parseManualRanking, manualRankingText, clanInfo } from './clan-domain.js';
 
 export const clanSchema=`
 CREATE TABLE IF NOT EXISTS clan_applications(id TEXT PRIMARY KEY,guild TEXT NOT NULL,user TEXT NOT NULL,clan TEXT NOT NULL,status TEXT NOT NULL,created INTEGER NOT NULL,data TEXT NOT NULL);
@@ -51,7 +51,31 @@ export class ClanStore {
     a.status='approved';a.actor=actor;a.decided=Date.now();this.save(a);
     this.job({id:`admit:${a.id}`,guild:a.guild,kind:'admit',application:a.id,user:a.user,clan:a.clan});return a;
   });}
-  decide(id,status,actor){const a=this.get(id);if(a?.status!=='pending')throw new UserError('La solicitud ya fue atendida.');a.status=status;a.actor=actor;a.decided=Date.now();return this.save(a);}
+  joinOpen(data){return this.transaction(()=>{
+    if(this.member(data.guild,data.user))throw new UserError('Ya perteneces a un clan.');
+    if(this.pending(data.guild,data.user))throw new UserError('Cancela tu solicitud pendiente antes de unirte.');
+    const id=randomUUID(),now=Date.now(),profile=data.profile??{embarkId:'Sin registrar',score:null,rank:'Sin registrar'};
+    const a={...data,profile,id,status:'approved',created:now,decided:now,automatic:true};
+    const key=profile.embarkId==='Sin registrar'?`discord:${data.user}`:embarkKey(profile.embarkId);
+    if(this.db.prepare('SELECT 1 FROM clan_members WHERE guild=? AND embark_key=?').get(data.guild,key))throw new UserError('Ese Embark ID ya pertenece a otro miembro.');
+    this.save(a);this.db.prepare('INSERT INTO clan_members VALUES(?,?,?,?,?)').run(data.guild,data.user,'vxltm',key,JSON.stringify({guild:data.guild,user:data.user,clan:'vxltm',profile,displayName:data.displayName,joined:now,application:id,rolePending:true}));
+    this.job({id:`admit:${id}`,guild:data.guild,kind:'admit',application:id,user:data.user,clan:'vxltm'});return a;
+  });}
+  addManual(data,actor){return this.transaction(()=>{
+    clanInfo(data.clan);
+    if(this.member(data.guild,data.user))throw new UserError('Esta persona ya pertenece a un clan.');
+    if(this.pending(data.guild,data.user))throw new UserError('Esta persona tiene una solicitud pendiente. Apruébala desde el receptor o cancélala antes del alta manual.');
+    const profile=data.profile??{embarkId:'Sin registrar',score:null,rank:'Sin registrar'};
+    const key=profile.embarkId==='Sin registrar'?`discord:${data.user}`:embarkKey(profile.embarkId);
+    if(this.db.prepare('SELECT 1 FROM clan_members WHERE guild=? AND embark_key=?').get(data.guild,key))throw new UserError('Ese Embark ID ya pertenece a otro miembro.');
+    const now=Date.now(),id=randomUUID(),a={...data,profile,id,status:'approved',created:now,decided:now,actor,manual:true};
+    this.save(a);
+    const member={guild:data.guild,user:data.user,clan:data.clan,profile,displayName:data.displayName,joined:now,application:id,rolePending:true};
+    this.db.prepare('INSERT INTO clan_members VALUES(?,?,?,?,?)').run(data.guild,data.user,data.clan,key,JSON.stringify(member));
+    this.db.prepare('INSERT INTO clan_audit VALUES(?,?,?,?)').run(randomUUID(),data.guild,now,JSON.stringify({kind:'manual-admission',actor,user:data.user,clan:data.clan,application:id}));
+    this.job({id:`admit:${id}`,guild:data.guild,kind:'admit',application:id,user:data.user,clan:data.clan});return a;
+  });}
+  decide(id,status,actor){return this.transaction(()=>{const a=this.get(id);if(a?.status!=='pending')throw new UserError('La solicitud ya fue atendida.');a.status=status;a.actor=actor;a.decided=Date.now();this.save(a);if(status==='rejected')this.job({id:`reject:${a.id}`,guild:a.guild,kind:'reject',application:a.id,user:a.user,clan:a.clan});return a;});}
   remove(guild,user,clan,actor,reason){return this.transaction(()=>{
     const member=this.member(guild,user);if(member&&member.clan!==clan)throw new UserError('El miembro pertenece al otro clan.');
     this.db.prepare('DELETE FROM clan_members WHERE guild=? AND user=? AND clan=?').run(guild,user,clan);

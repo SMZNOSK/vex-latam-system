@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 // Never prompt for credentials from the launcher or wait indefinitely for Git.
 const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never' };
 function git(...args) {
-  return spawnSync('git', args, { encoding: 'utf8', env, timeout: 30000, windowsHide: true });
+  return spawnSync(process.env.VEX_GIT_PATH || 'git', args, { encoding: 'utf8', env, timeout: 30000, windowsHide: true });
 }
 function output(result) { return result.stdout?.trim() ?? ''; }
 function skip(message) { console.log(`${message} Se iniciara la version local.`); }
