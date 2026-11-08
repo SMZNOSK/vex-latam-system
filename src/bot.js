@@ -25,6 +25,7 @@ import { AccessGate } from './access-gate.js';
 import { ChatSearch } from './chat-search.js';
 import { Tournaments, tournamentCommands, requireTournamentAdmin } from './tournaments.js';
 import { PrivateMatches } from './private-matches.js';
+import { Promotions } from './promotions.js';
 import { Mailboxes, isAdministrativeCommand } from './mailboxes.js';
 import { MemberCards } from './member-cards.js';
 import { sponsors, completeProfile } from './sponsors.js';
@@ -55,6 +56,7 @@ export class VexBot {
     this.chatSearch = new ChatSearch(this);
     this.tournaments = new Tournaments(this);
     this.privateMatches = new PrivateMatches(this);
+    this.promotions = new Promotions(this);
     this.mailboxes = new Mailboxes(this);
     this.wordLists = new WordLists(this);
     this.memberGuide = new MemberGuide(this);
@@ -294,6 +296,7 @@ export class VexBot {
       if (i.customId?.startsWith('clan:')) return await this.clans.handle(i);
       if (i.customId?.startsWith('tour:')) return await this.tournaments.handle(i);
       if (i.customId?.startsWith('privada:')) return await this.privateMatches.handle(i);
+      if (i.customId?.startsWith('promotion:')) return await this.promotions.handle(i);
       if (i.customId === 'leaderboard:view') return await this.leaderboard.view(i);
       if (i.customId === 'private:close') {
         if (!await this.privateReplies.close(i)) throw new UserError('Este botón solo cierra tu panel privado.');
@@ -333,12 +336,14 @@ export class VexBot {
     }
     if (tournamentCommands.includes(name)) return this.tournaments.command(i);
     if (name === 'privadas' || name === 'privadas-editar') return this.privateMatches.command(i);
+    if (name === 'rollpromocion' || name === 'agregar') return this.promotions.command(i);
     if (clanCommands.includes(name)) return this.clans.command(i);
     if (name === 'anuncio') requireTournamentAdmin(i);
     if (name === 'ping') return this.sendPrivate(i, `VEX LATAM SYSTEM está conectado. Latencia: ${this.client.ws.ping} ms.`);
     if (name === 'ayuda') return this.sendPrivate(i,
       '**Jugadores:** usa las tarjetas de registro-de-datos, buscar-equipo y leaderboard. También puedes usar /perfil, /buscar y /leaderboard.\n'
       + '**Buzones:** usa los botones de #feedback y #reportes. Solo los administradores reciben los envíos; el feedback admite anonimato opcional.\n'
+      + '**Promociones:** con Promo VEX o Creador VEX usa /agregar promocion. Revisa la tarjeta antes de publicarla en Promo con @here. Administración autoriza con /rollpromocion desde #admin-bot.\n'
       + '**VLS Find Squad:** perfiles, búsquedas, leaderboard y salas de voz temporales.\n'
       + '**Administración:** usa #admin-bot para /panel, /roles, /embed, /bienvenida, /despedida, /avisos, /anuncio, /privadas, /privadas-editar, /reglas, /moderacion y /busqueda-chat.\n'
       + '**Torneos:** inscríbete desde el panel del torneo. Solo Administradores: /torneo crear, /torneo editar, /torneo revisar, /torneo cerrar convocatoria, /torneo terminar, /torneo-formar-equipo, /torneo-chat-de-voz-general y /torneo-chat-de-voz-equipos. Cerrar convocatoria bloquea inscripciones; terminar inicia 7 días para eliminar los canales del torneo.\n'
@@ -610,6 +615,7 @@ export class VexBot {
     });
   }
   async expire() {
+    this.promotions.drafts.expire();
     for(const guild of this.guilds)for(const search of this.store.pendingSearchMirrors(guild))this.refreshPending.add(search.id);
     for (const id of this.store.expire()) await this.refreshSearch(id).catch(e => this.log(e, 'Actualizar búsqueda caducada'));
     this.workflows.drafts.expire();

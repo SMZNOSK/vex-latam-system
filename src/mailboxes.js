@@ -14,7 +14,7 @@ export const mailboxChannels = {
   adminCommands: 'admin-bot', feedbackInbox: 'buzon-feedback', reportInbox: 'buzon-reportes', testing: 'pruebas-bot',
   feedbackPublic: 'feedback', reportPublic: 'reportes',
 };
-const publicCommands = new Set(['ayuda', 'perfil', 'buscar', 'leaderboard']);
+const publicCommands = new Set(['ayuda', 'perfil', 'buscar', 'leaderboard', 'agregar']);
 export const isAdministrativeCommand = name => !publicCommands.has(name);
 const unknown = error => { if (error.code !== 10003) throw error; return null; };
 const nonce = text => createHash('sha256').update(text).digest('hex').slice(0, 25);

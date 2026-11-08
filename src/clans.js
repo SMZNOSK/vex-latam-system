@@ -104,7 +104,7 @@ export class Clans {
   panel(guild,clan,force=false){return this.bot.queue(`clan-panel:${guild.id}:${clan}`,()=>this.publishPanel(guild,clan,force));}
   async publishPanel(guild,clan,force=false){
     const cfg=this.settings(guild.id)[clan],members=this.store.members(guild.id,clan),settings=this.bot.store.settings(guild.id);
-    const fingerprint=hash([clan==='vxltm'?'clan-poster-v7-negative':'clan-poster-v6-mono',clans[clan],cfg.gameCount,members.length,settings.panels?.registro?.channel]);
+    const fingerprint=hash([clan==='vxltm'?'clan-poster-v8-stripes':'clan-poster-v6-mono',clans[clan],cfg.gameCount,members.length,settings.panels?.registro?.channel]);
     if(!force&&cfg.panel?.hash===fingerprint)return;
     const channel=await this.bot.channel(guild,cfg.joinChannel),payload=clanPanel(clan,settings,members.length);
     if(this.bot.renderer){try{payload.files=[{attachment:await this.bot.renderer.render('clan-poster',{clan},1080),name:'clan.png'}];payload.attachments=[];payload.embeds[0].setImage('attachment://clan.png');}catch(e){this.bot.log(e,'Cartel de clan; se conserva el texto');}}
@@ -115,7 +115,7 @@ export class Clans {
   ranking(guild,clan,force=false){return this.bot.queue(`clan-ranking:${guild.id}:${clan}`,()=>this.publishRanking(guild,clan,force));}
   async publishRanking(guild,clan,force=false){
     const cfg=this.settings(guild.id)[clan],manual=this.store.ranking(guild.id,clan);if(!manual)throw new UserError('El ranking manual está pendiente de preparar.');const people=manual.entries;
-    const fingerprint=hash([clan==='vxltm'?'clan-ranking-v4-negative':'clan-ranking-v3-mono',people,cfg.gameCount]);if(!force&&cfg.rankingHash===fingerprint)return;
+    const fingerprint=hash([clan==='vxltm'?'clan-ranking-v5-stripes':'clan-ranking-v3-mono',people,cfg.gameCount]);if(!force&&cfg.rankingHash===fingerprint)return;
     const channel=await this.bot.channel(guild,cfg.rankingChannel),pages=Math.max(1,Math.ceil(people.length/15)),references=[];
     for(let page=0;page<pages;page++){
       const slice=people.slice(page*15,(page+1)*15),receipt=clanFooter('Ranking',`${clan}:${page}`);

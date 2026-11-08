@@ -2,6 +2,10 @@
 
 Bot de Discord con perfiles privados, búsqueda de compañeros, roles, anuncios, reglas y moderación configurable.
 
+## V1.4 · Promociones y creadores
+
+**V1.4 · Promociones:** `/rollpromocion usuario:@Persona` asigna **Promo VEX** a externos o **Creador VEX** a integrantes de VXTG/VXLTM. Con cualquiera de esos roles se usa `/agregar promocion`: formulario privado, carátula, avatar circular y vista previa. Publica exclusivamente en Promo con `@here` y **Ver video**. VXLTM conserva el negativo blanco con franjas diagonales rojas. Guía en [docs/v1/PROMOCIONES.md](docs/v1/PROMOCIONES.md).
+
 ## V1.3 · VEX LATAM SQUAD
 
 Rediseño blanco y negro **01 / Corte** con Saira Extra Condensed ExtraBold. Alta manual mediante `/clan agregar`, bienvenida con avatar y mención real al aceptar formularios, y banco de **153 frases predeterminadas** de búsqueda. El arrancador ofrece instalar Git si falta; `iniciar-bot.cmd --instalar-git` prepara solo Git. Las listas personalizadas de búsqueda se conservan: usa `/busqueda-chat restablecer` para elegir el banco amplio. Instrucciones y alcance en [docs/v1/V1.3.md](docs/v1/V1.3.md).
