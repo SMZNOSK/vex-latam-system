@@ -13,6 +13,7 @@ import { securePrivateChannel } from './admin-access.js';
 import { pinIfAllowed } from './pins.js';
 import { channelDisplayName } from './channel-names.js';
 import { ClanStore } from './clan-store.js';
+import { admissionDesignVersion } from './clan-theme.js';
 import { ClanRankingEditor } from './clan-ranking-editor.js';
 import { clans, clanInfo, clanProfile, clanRoster, embarkKey, clanRSWarning } from './clan-domain.js';
 import { clanPanel, clanModal, applicationPayload, clanFooter } from './clan-ui.js';
@@ -103,7 +104,7 @@ export class Clans {
   panel(guild,clan,force=false){return this.bot.queue(`clan-panel:${guild.id}:${clan}`,()=>this.publishPanel(guild,clan,force));}
   async publishPanel(guild,clan,force=false){
     const cfg=this.settings(guild.id)[clan],members=this.store.members(guild.id,clan),settings=this.bot.store.settings(guild.id);
-    const fingerprint=hash(['clan-poster-v6-mono',clans[clan],cfg.gameCount,members.length,settings.panels?.registro?.channel]);
+    const fingerprint=hash([clan==='vxltm'?'clan-poster-v7-negative':'clan-poster-v6-mono',clans[clan],cfg.gameCount,members.length,settings.panels?.registro?.channel]);
     if(!force&&cfg.panel?.hash===fingerprint)return;
     const channel=await this.bot.channel(guild,cfg.joinChannel),payload=clanPanel(clan,settings,members.length);
     if(this.bot.renderer){try{payload.files=[{attachment:await this.bot.renderer.render('clan-poster',{clan},1080),name:'clan.png'}];payload.attachments=[];payload.embeds[0].setImage('attachment://clan.png');}catch(e){this.bot.log(e,'Cartel de clan; se conserva el texto');}}
@@ -114,7 +115,7 @@ export class Clans {
   ranking(guild,clan,force=false){return this.bot.queue(`clan-ranking:${guild.id}:${clan}`,()=>this.publishRanking(guild,clan,force));}
   async publishRanking(guild,clan,force=false){
     const cfg=this.settings(guild.id)[clan],manual=this.store.ranking(guild.id,clan);if(!manual)throw new UserError('El ranking manual está pendiente de preparar.');const people=manual.entries;
-    const fingerprint=hash(['clan-ranking-v3-mono',people,cfg.gameCount]);if(!force&&cfg.rankingHash===fingerprint)return;
+    const fingerprint=hash([clan==='vxltm'?'clan-ranking-v4-negative':'clan-ranking-v3-mono',people,cfg.gameCount]);if(!force&&cfg.rankingHash===fingerprint)return;
     const channel=await this.bot.channel(guild,cfg.rankingChannel),pages=Math.max(1,Math.ceil(people.length/15)),references=[];
     for(let page=0;page<pages;page++){
       const slice=people.slice(page*15,(page+1)*15),receipt=clanFooter('Ranking',`${clan}:${page}`);
@@ -249,15 +250,15 @@ export class Clans {
     // El recibo heredado permite recuperar incluso un envío sin imagen tras una caída.
     if(!rendered)embed.setFooter({text:receipt});
     const message=await this.write(channel,previous,payload,receipt);
-    a.announcement=message.id;a.announcementChannel=channel.id;a.announcementVersion=rendered?3:0;this.store.save(a);
+    a.announcement=message.id;a.announcementChannel=channel.id;a.announcementVersion=rendered?admissionDesignVersion(a.clan):0;this.store.save(a);
     return message;
   }
   async refreshAdmissions(guild){
     for(const a of this.store.applications(guild.id)){
-      if(a.status!=='approved'||!a.roleAssigned||a.announcementVersion===3||Date.now()-(a.announcementMissingAt??0)<3600000)continue;
+      if(a.status!=='approved'||!a.roleAssigned||a.announcementVersion===admissionDesignVersion(a.clan)||Date.now()-(a.announcementMissingAt??0)<3600000)continue;
       await this.bot.queue(`clan-members:${guild.id}`,async()=>{
         const fresh=this.store.get(a.id);
-        if(fresh?.status==='approved'&&fresh.announcementVersion!==3)await this.admission(guild,fresh,{existingOnly:true});
+        if(fresh?.status==='approved'&&fresh.announcementVersion!==admissionDesignVersion(fresh.clan))await this.admission(guild,fresh,{existingOnly:true});
       }).catch(e=>this.bot.log(e,'Actualizar tarjeta de ingreso existente; se reintentará'));
     }
   }

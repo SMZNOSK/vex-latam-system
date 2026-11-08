@@ -18,3 +18,4 @@ El acabado exige precisión de autor: márgenes generosos, líneas consistentes,
 - Lema aprobado en la referencia: No somos solo jugadores, somos VEX.
 - Tres interpretaciones para revisión: Corte, Edición y Señal. Las muestras usan datos ficticios.
 - Selección del cliente: 01 / Corte, con la fuente condensada de THE FINALS.
+- VXLTM interpreta la misma identidad en negativo: papel blanco, tinta negra y logo negro. Las fotos y las insignias conservan sus colores originales.
