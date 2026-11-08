@@ -1,12 +1,13 @@
-# Promociones · V1.4
+# Promociones · V1.4.1
 
 ## Autorizar a una persona
 
 Desde #admin-bot, con las cuentas administrativas autorizadas del bot:
 
-    /rollpromocion usuario:@Persona
+    /rollpromocion usuario:@Persona tipo:Promo VEX
+    /rollpromocion usuario:@Persona tipo:Creador VEX
 
-El comando selecciona automáticamente **Creador VEX** si la persona pertenece a VXTG o VXLTM, según sus roles de clan o su membresía registrada. Para externos asigna **Promo VEX**. Reutiliza el rol existente o crea el que falte sin permisos globales. Al volver a ejecutarlo actualiza la categoría y retira el otro rol de promociones, sin tocar los roles del clan.
+La opción **tipo** es obligatoria y permite elegir manualmente **Promo VEX** o **Creador VEX**. El bot respeta esa elección aunque la persona pertenezca a un clan diferente o cambie de clan después. La tarjeta muestra el rótulo del rol asignado. Reutiliza el rol existente o crea el que falte sin permisos globales. Al volver a ejecutarlo actualiza la categoría y retira el otro rol de promociones, sin tocar los roles del clan.
 
 Los nombres Promo VEX y Creador VEX sustituyen el nombre Publicidad solicitado inicialmente. Ambos autorizan únicamente las funciones de promociones del bot; no otorgan administración ni permiso para mencionar @here directamente.
 
@@ -14,7 +15,7 @@ Los nombres Promo VEX y Creador VEX sustituyen el nombre Publicidad solicitado i
 
     /agregar promocion
 
-Se puede abrir desde un canal del servidor. El formulario solicita título, enlace HTTPS y descripción opcional. Permite adjuntar una carátula PNG, JPG o WebP estática de hasta 8 MB. Para enlaces de YouTube intenta obtener automáticamente la miniatura; para cualquier otra plataforma se puede adjuntar la imagen. Si no hay carátula, se genera una composición con el título.
+Solo se puede abrir en el canal **Promo** configurado. Fuera de ese canal el bot responde de forma privada con el enlace al canal correcto, sin abrir el formulario ni crear un borrador. Los controles y la publicación también comprueban el canal; los hilos no se consideran Promo. El formulario solicita título, enlace HTTPS y descripción opcional. Permite adjuntar una carátula PNG, JPG o WebP estática de hasta 8 MB. Para enlaces de YouTube intenta obtener automáticamente la miniatura; para cualquier otra plataforma se puede adjuntar la imagen. Si no hay carátula, se genera una composición con el título.
 
 La vista previa es privada. **Publicar en Promo** envía una tarjeta blanca de la propuesta 02 / Editorial, con Saira Extra Condensed ExtraBold, avatar de Discord circular ampliado, nombre visible en Discord y rótulo **Promo VEX** o **Creador VEX**. El video se abre con el botón nativo **Ver video** y el título enlazado. La imagen generada no reproduce el video dentro de ella.
 
@@ -26,7 +27,7 @@ El mensaje público contiene únicamente `@here` como texto de aviso. El título
 
 El bot necesita Administrar roles y estar por encima de Promo VEX y Creador VEX para asignarlos. En Promo necesita Ver canal, Enviar mensajes, Insertar enlaces, Adjuntar archivos, Leer historial y Mencionar @everyone/@here. Si prepara un canal nuevo también necesita Administrar canales; los permisos de mención se conceden solo al bot dentro de ese canal.
 
-El acceso se vuelve a comprobar al recibir el formulario y al publicar. Quitar el rol impide nuevas publicaciones. Los borradores pertenecen a su autor y caducan a los veinte minutos. Si cambia su pertenencia al clan entre la vista previa y la publicación, debe abrir el formulario de nuevo para comprobar el rótulo actualizado.
+El acceso y el canal se vuelven a comprobar al recibir el formulario y al publicar. Quitar el rol impide nuevas publicaciones. Los borradores pertenecen a su autor y caducan a los veinte minutos. Si administración cambia su rol de promoción entre la vista previa y la publicación, debe abrir el formulario de nuevo para comprobar el rótulo actualizado. Cambiar de clan no cambia la categoría elegida.
 
 Los datos y recibos se guardan en SQLite mediante la configuración del servidor. Una respuesta perdida de Discord puede recuperarse desde la misma vista previa o desde `/agregar promocion` después de reiniciar: primero se busca el recibo para no repetir el aviso. Cancelar una vista previa nueva no publica nada.
 

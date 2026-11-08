@@ -13,7 +13,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 
-function fixture({clan=false,authorized=true}={}) {
+function fixture({clan=false,authorized=true,choice=clan?'creator':'promo'}={}) {
   let settings={promotions:{channel:'promo',roles:{promo:'promo-role',creator:'creator-role'}},clans:{vxtg:{role:'clan-role'}}};
   const sent=[],messages=new Collection(),renders=[],added=[],removed=[];
   const me={id:'bot',permissions:new PermissionsBitField(PermissionsBitField.All),roles:{highest:{position:100}}};
@@ -33,7 +33,7 @@ function fixture({clan=false,authorized=true}={}) {
     queue:async(_key,fn)=>fn(),mailboxes:{assertAdminCommand:()=>{}},sendPrivate:async()=>{},memberCards:{avatar:async()=>null},
     renderer:{render:async(kind,data)=>{renders.push({kind,data});return Buffer.from('png');}}};
   const service=new Promotions(bot);service.media.videoCover=async()=>null;
-  const base={guild,guildId:'g',channelId:'source',user:{id:'user'},commandName:'agregar',options:{getSubcommand:()=> 'promocion',getUser:()=>({id:'user',bot:false})}};
+  const base={guild,guildId:'g',channelId:'promo',user:{id:'user'},commandName:'agregar',options:{getSubcommand:()=> 'promocion',getUser:()=>({id:'user',bot:false}),getString:()=>choice}};
   return {service,bot,base,member,channel,roleCache,sent,messages,renders,added,removed,settings:()=>settings};
 }
 async function ready(f) {
@@ -50,6 +50,7 @@ async function ready(f) {
 test('rollpromocion es administrativo y agregar promocion conserva autorización por rol',()=>{
   const grant=commands.find(c=>c.name==='rollpromocion'),add=commands.find(c=>c.name==='agregar');
   assert.equal(grant.default_member_permissions,String(P.Administrator));assert.equal(grant.options[0].required,true);
+  assert.deepEqual(grant.options[1].choices.map(({name,value})=>({name,value})),[{name:'Promo VEX',value:'promo'},{name:'Creador VEX',value:'creator'}]);assert.equal(grant.options[1].required,true);
   assert.equal(add.options[0].name,'promocion');assert.equal(add.default_member_permissions,undefined);
   assert.equal(isAdministrativeCommand('rollpromocion'),true);assert.equal(isAdministrativeCommand('agregar'),false);
 });
@@ -63,12 +64,13 @@ test('URLs y proveedores: solo HTTPS y miniatura automática para IDs de YouTube
   for(const url of ['javascript:alert(1)','http://example.com/video','https://user:pass@example.com/video','https://localhost/video','https://127.0.0.1/video','https://example.local/video','https://example.com:444/video','https://example.com/'+ 'a'.repeat(512)])assert.throws(()=>promotionURL(url));
 });
 
-test('alta administrativa asigna Promo VEX a externos y Creador VEX a miembros del clan',async()=>{
-  for(const clan of [false,true]){
-    const f=fixture({clan,authorized:false});
+test('alta administrativa respeta la elección manual independientemente del clan',async()=>{
+  for(const clan of [false,true])for(const choice of ['promo','creator']){
+    const f=fixture({clan,authorized:false,choice});
     await f.service.grant({...f.base,commandName:'rollpromocion',deferReply:async()=>{}});
-    assert.deepEqual(f.added,[clan?'creator-role':'promo-role']);
-    assert.equal(f.settings().promotions.grants.user.type,clan?'creator':'promo');
+    assert.deepEqual(f.added,[choice==='creator'?'creator-role':'promo-role']);
+    assert.equal(f.settings().promotions.grants.user.type,choice);
+    assert.equal(f.service.memberType('g',f.member),choice);
   }
 });
 
@@ -98,7 +100,7 @@ test('vista privada con avatar y categoría; publica solo en Promo con @here fij
 test('doble clic, otro usuario y cambio de canal no duplican ni desvían publicaciones',async()=>{
   const f=fixture(),{interaction}=await ready(f);
   await assert.rejects(f.service.handle({...interaction,user:{id:'other'}}),/otra persona/);
-  await assert.rejects(f.service.handle({...interaction,channelId:'other'}),/canal donde abriste/);
+  await assert.rejects(f.service.handle({...interaction,channelId:'other'}),/únicamente en <#promo>/);
   const results=await Promise.allSettled([f.service.handle(interaction),f.service.handle(interaction)]);
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.sent.length,1);
 });
@@ -121,10 +123,30 @@ test('un envío con respuesta perdida se recupera por recibo sin repetir @here, 
   assert.equal(Object.values(f.settings().promotions.publications)[0].status,'sent');
 });
 
-test('cambiar de clan actualiza el rótulo de nuevas tarjetas y exige revisar una vista previa anterior',async()=>{
+test('cambiar de clan conserva el rótulo elegido y no bloquea la publicación',async()=>{
   const f=fixture(),{interaction}=await ready(f);f.member.roles.cache.set('clan-role',{id:'clan-role'});
-  await assert.rejects(f.service.handle(interaction),/Cambió tu pertenencia/);assert.equal(f.sent.length,0);
+  await f.service.handle(interaction);assert.equal(f.sent.length,1);
+  await ready(f);assert.equal(f.renders.at(-1).data.creatorType,'promo');
+});
+
+test('agregar promocion fuera de Promo no abre formulario ni crea un borrador',async()=>{
+  const f=fixture();let opened=0;
+  for(const channelId of ['general','admin-bot','hilo-de-promo'])await assert.rejects(f.service.command({...f.base,channelId,showModal:async()=>{opened++;}}),/únicamente en <#promo>/);
+  assert.equal(opened,0);assert.equal(f.service.drafts.items.size,0);assert.equal(f.sent.length,0);
+  await ready(f);
+});
+
+test('cambiar el rol manual obliga a actualizar la vista previa y aplica el nuevo rótulo',async()=>{
+  const f=fixture(),{interaction}=await ready(f);
+  await f.service.grant({...f.base,commandName:'rollpromocion',options:{...f.base.options,getString:()=> 'creator'},deferReply:async()=>{}});
+  await assert.rejects(f.service.handle(interaction),/Cambió tu rol de promoción/);assert.equal(f.sent.length,0);
   await ready(f);assert.equal(f.renders.at(-1).data.creatorType,'creator');
+});
+
+test('un tipo vacío o desconocido no crea ni asigna roles',async()=>{
+  const f=fixture({authorized:false});
+  for(const choice of [null,'otro','__proto__'])await assert.rejects(f.service.grant({...f.base,options:{...f.base.options,getString:()=>choice}}),/Elige Promo VEX/);
+  assert.equal(f.added.length,0);assert.equal(f.removed.length,0);assert.equal(f.settings().promotions.grants,undefined);
 });
 
 test('datos de usuario se escapan y la tarjeta editorial conserva el nombre real y su categoría',()=>{

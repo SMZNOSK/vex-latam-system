@@ -4,7 +4,7 @@ Bot de Discord con perfiles privados, búsqueda de compañeros, roles, anuncios,
 
 ## V1.4 · Promociones y creadores
 
-**V1.4 · Promociones:** `/rollpromocion usuario:@Persona` asigna **Promo VEX** a externos o **Creador VEX** a integrantes de VXTG/VXLTM. Con cualquiera de esos roles se usa `/agregar promocion`: formulario privado, carátula, avatar circular y vista previa. Publica exclusivamente en Promo con `@here` y **Ver video**. VXLTM conserva el negativo blanco con franjas diagonales rojas. Guía en [docs/v1/PROMOCIONES.md](docs/v1/PROMOCIONES.md).
+**V1.4.1 · Promociones:** `/rollpromocion usuario:@Persona tipo:...` permite elegir manualmente **Promo VEX** o **Creador VEX**, independientemente del clan. Con cualquiera de esos roles se usa `/agregar promocion` **únicamente en Promo**: formulario privado, carátula, avatar circular y vista previa. Publica en ese canal con `@here` y **Ver video**. VXLTM conserva el negativo blanco con franjas diagonales rojas. Guía en [docs/v1/PROMOCIONES.md](docs/v1/PROMOCIONES.md).
 
 ## V1.3 · VEX LATAM SQUAD
 

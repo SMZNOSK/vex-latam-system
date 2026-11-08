@@ -48,9 +48,15 @@ export class Promotions {
     return channel;
   }
   memberType(guild,member) {
-    const settings=this.bot.store.settings(guild),bindings=config.roleBindings?.[guild]??{};
-    const clanRoles=['vxtg','vxltm'].map(clan=>settings.clans?.[clan]?.role??bindings[`clan.${clan}`]).filter(Boolean);
-    return clanRoles.some(id=>member.roles.cache.has(id))||this.bot.clans?.store.member(guild,member.id)?'creator':'promo';
+    const settings=this.settings(guild),selected=settings.grants?.[member.id]?.type;
+    const has=type=>member.roles.cache.has(settings.roles?.[type])||member.roles.cache.some(role=>normalized(role.name)===normalized(promotionRoles[type]));
+    if(Object.hasOwn(promotionRoles,selected)&&has(selected))return selected;
+    return has('creator')?'creator':'promo';
+  }
+  assertPromoChannel(i) {
+    const channel=config.promotionChannels?.[i.guildId]??this.settings(i.guildId).channel;
+    if(!channel)throw new UserError('Usa primero /rollpromocion para preparar el canal Promo.');
+    if(i.channelId!==channel)throw new UserError(`Usa **/agregar promocion** únicamente en <#${channel}> (Promo).`);
   }
   async role(guild,type,{prepare=false}={}) {
     await guild.roles.fetch();
@@ -77,15 +83,17 @@ export class Promotions {
     this.bot.mailboxes.assertAdminCommand(i);
     const user=i.options.getUser('usuario',true);
     if(user.bot)throw new UserError('Selecciona una persona, no un bot.');
+    const type=i.options.getString('tipo',true);
+    if(!Object.hasOwn(promotionRoles,type))throw new UserError('Elige Promo VEX o Creador VEX en la opción tipo.');
     await i.deferReply({flags:privateFlags});
     const result=await this.bot.queue(`promotions-setup:${i.guildId}`,async()=>{
       const member=await i.guild.members.fetch({user:user.id,force:true}).catch(unknown);
       if(!member)throw new UserError('La persona debe estar dentro de este servidor.');
-      const type=this.memberType(i.guildId,member),role=await this.role(i.guild,type,{prepare:true}),channel=await this.destination(i.guild,{prepare:true});
+      const role=await this.role(i.guild,type,{prepare:true}),channel=await this.destination(i.guild,{prepare:true});
       this.save(i.guildId,{roles:{...this.settings(i.guildId).roles,[type]:role.id},channel:channel.id});
       if(!member.roles.cache.has(role.id))await member.roles.add(role,`Promoción autorizada por ${i.user.id}`);
       const other=await this.role(i.guild,type==='promo'?'creator':'promo');
-      if(other&&member.roles.cache.has(other.id))await member.roles.remove(other,'Actualizar categoría de promociones según pertenencia al clan');
+      if(other&&member.roles.cache.has(other.id))await member.roles.remove(other,'Actualizar categoría de promociones elegida por administración');
       const grants=this.settings(i.guildId).grants??{};grants[user.id]={actor:i.user.id,at:Date.now(),type};this.save(i.guildId,{grants});
       return {role,channel};
     });
@@ -94,6 +102,7 @@ export class Promotions {
   async command(i) {
     if(i.commandName==='rollpromocion')return this.grant(i);
     if(i.options.getSubcommand()!=='promocion')throw new UserError('Subcomando de promoción desconocido.');
+    this.assertPromoChannel(i);
     const member=await this.authorized(i),channel=await this.destination(i.guild);
     const pending=Object.values(this.settings(i.guildId).publications??{}).find(p=>p.user===i.user.id&&p.status==='sending');
     const d=this.drafts.create('promotion',i.guildId,i.user.id,{channel:channel.id,origin:i.channelId,publicationId:pending?.id,values:pending?.values,coverRef:pending?.coverRef});
@@ -106,6 +115,7 @@ export class Promotions {
         .setFileUploadComponent(new FileUploadBuilder({file_types:['.png','.jpg','.jpeg','.webp']}).setCustomId('cover').setRequired(false).setMinValues(0).setMaxValues(1))));
   }
   async preview(i,d,member) {
+    this.assertPromoChannel(i);
     if(!this.bot.renderer)throw new UserError('El generador de tarjetas está pendiente de preparar.');
     let coverData=await this.media.cards.dataURI(d.data.coverRef);
     if(!coverData){const cover=await this.media.videoCover(d.data.values.url);if(cover){d.data.coverRef=cover.ref;coverData=cover.data;}}
@@ -130,7 +140,8 @@ export class Promotions {
     }
   }
   async publish(i,d,member) {
-    if(d.data.creatorType!==this.memberType(i.guildId,member))throw new UserError('Cambió tu pertenencia al clan desde la vista previa. Abre de nuevo /agregar promocion para actualizar tu tarjeta.');
+    this.assertPromoChannel(i);
+    if(d.data.creatorType!==this.memberType(i.guildId,member))throw new UserError('Cambió tu rol de promoción desde la vista previa. Abre de nuevo /agregar promocion para actualizar tu tarjeta.');
     const channel=await this.destination(i.guild);
     if(channel.id!==d.data.channel)throw new UserError('Cambió el canal Promo. Abre de nuevo /agregar promocion.');
     const id=d.data.publicationId??d.id,previous=this.settings(i.guildId).publications?.[id];
@@ -149,6 +160,7 @@ export class Promotions {
     return `https://discord.com/channels/${i.guildId}/${channel.id}/${message.id}`;
   }
   async handle(i) {
+    this.assertPromoChannel(i);
     const [,action,id]=i.customId.split(':'),d=this.drafts.get(id,i.guildId,i.user.id);
     if(i.channelId!==d.data.origin)throw new UserError('Usa los controles en el canal donde abriste el formulario.');
     if(action==='cancel'&&i.isButton()&&d.step==='ready'&&!d.data.publicationId){this.drafts.remove(id);return i.update({content:'Promoción cancelada.',components:[],attachments:[],allowedMentions:noMentions});}

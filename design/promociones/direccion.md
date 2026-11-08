@@ -18,4 +18,4 @@ Las variaciones exploran protagonismos distintos sin romper el sistema: la panta
 
 Saira Extra Condensed ExtraBold 800, Saira Condensed 500, negro #0B0B0B, blanco #F5F5F0 y rojo #DF263C. Los botones de enlace y el aviso @here pertenecen al mensaje nativo de Discord.
 
-Selección: 02 / Editorial, con avatar circular ampliado. Externos: Promo VEX. Integrantes de VXTG o VXLTM: Creador VEX. La tarjeta muestra también el nombre de Discord de quien publica.
+Selección: 02 / Editorial, con avatar circular ampliado. Administración elige manualmente el rótulo Promo VEX o Creador VEX al asignar el rol; la pertenencia al clan no cambia esa elección. La tarjeta muestra también el nombre de Discord de quien publica.

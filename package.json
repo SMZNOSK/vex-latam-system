@@ -1,6 +1,6 @@
 {
   "name": "vex-bot",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Bot de Discord para la comunidad de THE FINALS",
   "type": "module",

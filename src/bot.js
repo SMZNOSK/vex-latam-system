@@ -343,7 +343,7 @@ export class VexBot {
     if (name === 'ayuda') return this.sendPrivate(i,
       '**Jugadores:** usa las tarjetas de registro-de-datos, buscar-equipo y leaderboard. También puedes usar /perfil, /buscar y /leaderboard.\n'
       + '**Buzones:** usa los botones de #feedback y #reportes. Solo los administradores reciben los envíos; el feedback admite anonimato opcional.\n'
-      + '**Promociones:** con Promo VEX o Creador VEX usa /agregar promocion. Revisa la tarjeta antes de publicarla en Promo con @here. Administración autoriza con /rollpromocion desde #admin-bot.\n'
+      + '**Promociones:** con Promo VEX o Creador VEX usa /agregar promocion únicamente en Promo. Revisa la tarjeta antes de publicarla con @here. Administración elige manualmente el tipo con /rollpromocion desde #admin-bot.\n'
       + '**VLS Find Squad:** perfiles, búsquedas, leaderboard y salas de voz temporales.\n'
       + '**Administración:** usa #admin-bot para /panel, /roles, /embed, /bienvenida, /despedida, /avisos, /anuncio, /privadas, /privadas-editar, /reglas, /moderacion y /busqueda-chat.\n'
       + '**Torneos:** inscríbete desde el panel del torneo. Solo Administradores: /torneo crear, /torneo editar, /torneo revisar, /torneo cerrar convocatoria, /torneo terminar, /torneo-formar-equipo, /torneo-chat-de-voz-general y /torneo-chat-de-voz-equipos. Cerrar convocatoria bloquea inscripciones; terminar inicia 7 días para eliminar los canales del torneo.\n'

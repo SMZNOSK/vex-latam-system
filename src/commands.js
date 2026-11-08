@@ -5,8 +5,10 @@ const tournamentAdmin = command => command.setDefaultMemberPermissions(P.Adminis
 const tournamentOption = o => o.setName('torneo').setDescription('Selecciona el torneo por nombre o ID').setAutocomplete(true);
 const channel = option => option.setName('canal').setDescription('Canal de texto donde publicar').addChannelTypes(ChannelType.GuildText).setRequired(true);
 export const commands = [
-  admin(new SlashCommandBuilder().setName('rollpromocion').setDescription('Asigna Promo VEX a externos o Creador VEX a integrantes del clan'))
-    .addUserOption(o=>o.setName('usuario').setDescription('Persona autorizada para publicar promociones').setRequired(true)),
+  admin(new SlashCommandBuilder().setName('rollpromocion').setDescription('Asigna manualmente Promo VEX o Creador VEX'))
+    .addUserOption(o=>o.setName('usuario').setDescription('Persona autorizada para publicar promociones').setRequired(true))
+    .addStringOption(o=>o.setName('tipo').setDescription('Rol y rótulo que quieres asignar').setRequired(true)
+      .addChoices({name:'Promo VEX',value:'promo'},{name:'Creador VEX',value:'creator'})),
   new SlashCommandBuilder().setName('agregar').setDescription('Publicaciones de miembros autorizados')
     .addSubcommand(s=>s.setName('promocion').setDescription('Prepara una tarjeta para publicar tu video en Promo')),
   ...['vxtg','vxltm'].map(clan=>admin(new SlashCommandBuilder().setName(`clan-${clan}-numero-miembros`).setDescription(`Actualiza manualmente el total real de ${clan.toUpperCase()} en THE FINALS`))
