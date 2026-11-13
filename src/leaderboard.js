@@ -5,6 +5,7 @@ import { rankFromRS, UserError } from './domain.js';
 import { card, row, button, safe, withImage, deliverCard } from './ui.js';
 import { lockControlChannel } from './setup.js';
 import { pinIfAllowed } from './pins.js';
+import { requireProductionChannel } from './channel-names.js';
 
 export function topPlayers(profiles) {
   return profiles.filter(p => Number.isInteger(p.score) && p.score >= 0 && p.score <= 999999 && typeof p.embarkId === 'string')
@@ -43,6 +44,7 @@ export class Leaderboard {
         try { target = await guild.channels.fetch(saved.channel); }
         catch (error) { if (error.code !== 10003) throw error; }
       }
+      requireProductionChannel(guild, target, 'leaderboard');
       if (!target) {
         const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.name === (config.leaderboardChannelName ?? 'leaderboard'));
         if (matches.size > 1) throw new UserError('Hay varios canales #leaderboard. Elige uno con /panel tipo:leaderboard.');

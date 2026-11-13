@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { ChannelType, MessageFlags, PermissionFlagsBits as P, ButtonStyle } from 'discord.js';
+import { requireProductionChannel } from './channel-names.js';
 import { Drafts } from './drafts.js';
 import { UserError } from './domain.js';
 import { assertAssignable } from './roles.js';
@@ -25,6 +26,7 @@ export class Community {
     const lifecycle = ['welcome', 'farewell'].includes(type);
     const saved = lifecycle ? settings.community?.[`${type}Channel`] : settings.panels?.[type]?.channel;
     let channel = saved ? await guild.channels.fetch(saved).catch(error => { if (error.code !== 10003) throw error; return null; }) : null;
+    requireProductionChannel(guild, channel, names[type]);
     if (!channel) {
       const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.name === names[type]);
       if (matches.size > 1) throw new UserError(`Hay varios canales #${names[type]}. Elige uno con /panel o /bienvenida editar.`);

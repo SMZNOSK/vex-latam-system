@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { config, contentIntent } from './config.js';
 import { requireOperator } from './admin-access.js';
 import { prepareProduction } from './production.js';
+import { requireProductionChannel } from './channel-names.js';
 import { syncProductionVisibility } from './production-visibility.js';
 import { SearchMirrors } from './search-mirrors.js';
 import { pinIfAllowed } from './pins.js';
@@ -102,6 +103,7 @@ export class VexBot {
     for (const [type, name] of [['registro', config.registrationChannelName], ['buscar', config.searchChannelName]]) {
       try {
         let channel = saved.panels?.[type]?.channel ? await guild.channels.fetch(saved.panels[type].channel) : null;
+        requireProductionChannel(guild, channel, name);
         if (!channel) {
           const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.name === name);
           if (matches.size > 1) throw new UserError(`Hay varios canales ${name}. Selecciona uno con /panel.`);
@@ -633,7 +635,9 @@ export class VexBot {
           const teams = await ensureTeamsChannel(this, guild);
           for (const [type, name] of [['registro', config.registrationChannelName], ['buscar', config.searchChannelName]]) {
             const saved = this.store.settings(id).panels?.[type];
-            const channel = saved ? await guild.channels.fetch(saved.channel) : guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name);
+            let channel = saved?.channel ? await guild.channels.fetch(saved.channel) : null;
+            requireProductionChannel(guild, channel, name);
+            channel ??= guild.channels.cache.find(c => c.type === ChannelType.GuildText && c.name === name);
             if (channel) await this.postPanel(guild, type, channel);
             else throw new UserError(`Falta #${name}. Crea el canal o usa /panel.`);
           }

@@ -8,7 +8,7 @@ import { privateFlags } from './ui.js';
 import { FeedbackQuota } from './feedback-quota.js';
 import { requireOperator, operatorIds, restrictedOperators, securePrivateChannel } from './admin-access.js';
 import { pinIfAllowed } from './pins.js';
-import { channelDisplayName } from './channel-names.js';
+import { channelDisplayName, requireProductionChannel } from './channel-names.js';
 
 export const mailboxChannels = {
   adminCommands: 'admin-bot', feedbackInbox: 'buzon-feedback', reportInbox: 'buzon-reportes', testing: 'pruebas-bot',
@@ -41,6 +41,7 @@ export class Mailboxes {
     name = channelDisplayName(guild.id, name);
     const saved = this.settings(guild.id).channels?.[key];
     let channel = saved ? await guild.channels.fetch(saved, { force: true }).catch(unknown) : null;
+    requireProductionChannel(guild, channel, name);
     if (channel && channel.type !== type) throw new UserError(`El canal guardado para ${name} tiene un tipo incorrecto.`);
     if (channel && this.bot.store.settings(guild.id).integration?.preservedChannels?.includes(channel.id)) {
       await this.bot.community.permissions(guild, channel);
@@ -54,7 +55,7 @@ export class Mailboxes {
     if (!channel) channel = await guild.channels.create({ name, type, ...(parent ? { parent: parent.id } : {}),
       permissionOverwrites: permissions, reason: 'Buzones privados y públicos de VEX LATAM SYSTEM' });
     this.save(guild.id, 'channels', key, channel.id);
-    if (channel.name !== name || (channel.parentId ?? null) !== (parent?.id ?? null)) {
+    if (guild.id !== config.productionGuildId && (channel.name !== name || (channel.parentId ?? null) !== (parent?.id ?? null))) {
       await channel.edit({ name, parent: parent?.id ?? null, reason: 'Organización de buzones VEX LATAM' });
     }
     const actual = [...channel.permissionOverwrites.cache.values()];

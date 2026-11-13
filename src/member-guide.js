@@ -3,6 +3,7 @@ import { commands } from './commands.js';
 import { UserError } from './domain.js';
 import { noMentions } from './ui.js';
 import { pinIfAllowed } from './pins.js';
+import { requireProductionChannel } from './channel-names.js';
 
 const footer = 'VEX LATAM SYSTEM · Guía para miembros';
 const missing = error => { if ([10003, 10008].includes(error.code)) return null; throw error; };
@@ -20,6 +21,7 @@ export class MemberGuide {
     await guild.channels.fetch();
     const settings = this.bot.store.settings(guild.id), ref = settings.memberGuide;
     let channel = ref?.channel ? await guild.channels.fetch(ref.channel).catch(missing) : null;
+    requireProductionChannel(guild, channel, 'comandos-del-bot');
     if (!channel) {
       const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.name.includes('comandos-del-bot'));
       if (matches.size > 1) throw new UserError('Hay varios canales de comandos del bot. Conserva uno para publicar la guía.');

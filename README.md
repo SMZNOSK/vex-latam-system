@@ -12,7 +12,7 @@ Rediseño blanco y negro **01 / Corte** con Saira Extra Condensed ExtraBold. Alt
 
 ## V1 · Servidor principal
 
-La V1 se ejecuta en **VΞX LΛTΛM SQUΛD** (`1316232884117311558`). Reutiliza los canales y roles definidos por ID en `bot.config.json`; prepara únicamente los recursos que faltan y mantiene los datos de **VLS´ EXPERIMENTS** separados. El estado de despliegue y las limitaciones están en [docs/v1/RELEASE.md](docs/v1/RELEASE.md). Las secciones de traslado a EXPERIMENTS que aparecen más abajo documentan la etapa anterior.
+La V1 se ejecuta en **VΞX LΛTΛM SQUΛD** (`1316232884117311558`). Desde la v1.4.2, el arranque vincula los canales y categorías existentes por ID en `bot.config.json`, incluso con una base de datos nueva o con referencias a duplicados. Los comandos administrativos vuelven a `🤖・admin-bot`. Si falta algún destino, el arranque indica qué ID revisar. Los datos de **VLS´ EXPERIMENTS** se mantienen separados. [Guía del servidor principal](docs/v1/RELEASE.md)
 
 En producción, los controles administrativos están reservados a la cuenta autorizada en `operatorUserIds` y al propietario actual del servidor. Se ejecutan desde **#admin-bot**. Discord permite a otros miembros con **Administrador** ver cualquier canal, pero el bot rechaza sus operaciones administrativas. En pruebas se conserva la comprobación de Administrador.
 

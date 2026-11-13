@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { UserError } from './domain.js';
 
 // Custom Discord emoji markup is for messages; channel names use Unicode.
 const names = Object.freeze({
@@ -25,4 +26,10 @@ const names = Object.freeze({
 
 export function channelDisplayName(guildId, name) {
   return guildId === config.productionGuildId ? names[name] ?? name : name;
+}
+
+export function requireProductionChannel(guild, channel, name) {
+  if (guild.id === config.productionGuildId && !channel) {
+    throw new UserError(`Falta el canal existente ${name}. Revisa su ID en bot.config.json.`);
+  }
 }

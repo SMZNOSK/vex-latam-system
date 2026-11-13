@@ -4,6 +4,7 @@ import { assertAssignable } from './roles.js';
 import { card, deliverCard } from './ui.js';
 import { reconcileIdentityRoles } from './access-gate.js';
 import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
+import { requireProductionChannel } from './channel-names.js';
 
 export async function ensureFinalsRole(bot, guild) {
   return bot.queue(`role-setup:${guild.id}`, async () => {
@@ -56,6 +57,7 @@ export async function processRoleJobs(bot, guild) {
 export async function ensureTeamsChannel(bot, guild) {
   const saved = bot.store.settings(guild.id);
   let channel = saved.teamsChannel ? await guild.channels.fetch(saved.teamsChannel).catch(() => null) : null;
+  requireProductionChannel(guild, channel, 'equipos-del-bot');
   if (!channel) {
     const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.name === 'equipos');
     if (matches.size > 1) throw new UserError('Hay varios canales #equipos. Conserva uno con ese nombre.');

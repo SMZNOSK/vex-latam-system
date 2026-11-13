@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {ActionRowBuilder,ButtonBuilder,ButtonStyle,ChannelType,EmbedBuilder,FileUploadBuilder,LabelBuilder,ModalBuilder,PermissionFlagsBits as P} from 'discord.js';
 import {config,dataDir} from './config.js';
+import {requireProductionChannel} from './channel-names.js';
 import {Drafts} from './drafts.js';
 import {UserError} from './domain.js';
 import {assertAssignable} from './roles.js';
@@ -30,6 +31,7 @@ export class Promotions {
     const id=config.promotionChannels?.[guild.id]??this.settings(guild.id).channel;
     let channel=id?await guild.channels.fetch(id).catch(unknown):null;
     if(id&&!channel)throw new UserError('El canal Promo configurado ya no existe. Revisa su ID antes de publicar.');
+    requireProductionChannel(guild,channel,'Promo');
     const me=await guild.members.fetchMe();
     if(!channel&&prepare){
       await guild.channels.fetch();

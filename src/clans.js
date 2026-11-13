@@ -11,7 +11,7 @@ import { assertAssignable } from './roles.js';
 import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 import { securePrivateChannel } from './admin-access.js';
 import { pinIfAllowed } from './pins.js';
-import { channelDisplayName } from './channel-names.js';
+import { channelDisplayName, requireProductionChannel } from './channel-names.js';
 import { ClanStore } from './clan-store.js';
 import { admissionDesignVersion } from './clan-theme.js';
 import { ClanRankingEditor } from './clan-ranking-editor.js';
@@ -32,10 +32,11 @@ export class Clans {
   async channel(guild,name,type,parent,saved,permissions){
     name=channelDisplayName(guild.id,name);
     let c=saved?await guild.channels.fetch(saved).catch(unknown):null;
+    requireProductionChannel(guild,c,name);
     if(c&&c.type!==type)throw new UserError(`El destino guardado de ${name} tiene otro tipo.`);
     if(!c){const matches=guild.channels.cache.filter(c=>c.type===type&&c.name===name&&(c.parentId??null)===(parent?.id??null));if(matches.size>1)throw new UserError(`Hay varios canales ${name}. Revisa los duplicados.`);c=matches.first();}
     if(!c)c=await guild.channels.create({name,type,...(parent?{parent:parent.id}:{}),permissionOverwrites:permissions,reason:'Solicitudes y rankings de clanes VEX LATAM'});
-    if(c.name!==name||(c.parentId??null)!==(parent?.id??null))await c.edit({name,parent:parent?.id??null});
+    if(guild.id!==config.productionGuildId&&(c.name!==name||(c.parentId??null)!==(parent?.id??null)))await c.edit({name,parent:parent?.id??null});
     if(c.permissionOverwrites.cache.size!==permissions.length||permissions.some(p=>{const o=c.permissionOverwrites.cache.get(p.id);return !o||o.allow.bitfield!==PermissionsBitField.resolve(p.allow)||o.deny.bitfield!==PermissionsBitField.resolve(p.deny);}))await c.permissionOverwrites.set(permissions,'Permisos de canales de clanes');
     return c;
   }
@@ -143,10 +144,12 @@ export class Clans {
   syncApplication(guild,application){return this.bot.queue(`clan-members:${guild.id}`,()=>this.publishApplication(guild,this.store.get(application.id)));}
   async publishApplication(guild,a){
     if(!a)return;
-    const fingerprint=hash(['clan-application-v4-warning',clans[a.clan].color,a.status,a.actor,a.roleAssigned,a.dmStatus,a.profile,a.availability,a.motivation,a.experience,a.highestRank,a.represent]);if(a.inboxHash===fingerprint)return;
+    const inboxId=this.settings(guild.id).channels?.inbox;
+    const fingerprint=hash(['clan-application-v4-warning',clans[a.clan].color,a.status,a.actor,a.roleAssigned,a.dmStatus,a.profile,a.availability,a.motivation,a.experience,a.highestRank,a.represent]);
+    if(a.inboxHash===fingerprint&&(a.inboxChannel===inboxId||a.status!=='pending'))return;
     const channel=await this.inbox(guild),uri=await this.evidence.dataURI(a.evidence);if(!uri)throw new UserError('No se encuentra la captura de esta solicitud. Contacta con el administrador.');
     const payload=applicationPayload(a);payload.files=[{attachment:Buffer.from(uri.split(',')[1],'base64'),name:'evidencia-clan.png'}];
-    const m=await this.write(channel,a.inboxMessage,payload,clanFooter('Solicitud',a.id));a.inboxMessage=m.id;a.inboxChannel=channel.id;a.inboxHash=fingerprint;this.store.save(a);
+    const m=await this.write(channel,a.inboxChannel===channel.id?a.inboxMessage:null,payload,clanFooter('Solicitud',a.id));a.inboxMessage=m.id;a.inboxChannel=channel.id;a.inboxHash=fingerprint;this.store.save(a);
   }
   profile(guild,user,clan){this.bot.workflows.assertProfileSaved(guild,user);return clanProfile(this.bot.store.profile(guild,user),clan);}
   async eligible(guild,user,clan,fresh=true){

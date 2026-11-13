@@ -6,7 +6,7 @@ Servidor principal: **VΞX LΛTΛM SQUΛD** (`1316232884117311558`).
 
 - Reutiliza bienvenida, reglas, selección de roles, anuncios de torneos, información de clanes, sugerencias y los chats Ranked/Rápidas.
 - Vincula los cinco roles existentes de THE FINALS, clubes y modos por ID. Crea Verificado y los doce patrocinadores ausentes, sin permisos globales.
-- Añade ADMIN PANEL, SISTEMA DEL BOT y CLANES, con dieciséis canales de texto. No crea #pruebas-bot en producción.
+- Usa las categorías existentes ADMIN PANEL, SISTEMA DEL BOT y CLANES y sus canales de texto según los IDs de `productionResources` en `bot.config.json`. Desde la v1.4.2, estos IDs tienen prioridad sobre las referencias locales al arrancar.
 - Conserva reglas, carteles de roles externos, salas permanentes, miembros e historial. No importa perfiles, torneos ni formularios de pruebas.
 - Restringe las operaciones administrativas al propietario actual y a la cuenta autorizada; los comandos se procesan en #admin-bot.
 - Guarda una instantánea local de canales, permisos, roles y configuración antes de preparar producción. Los respaldos y las credenciales no se publican en Git.
@@ -26,6 +26,8 @@ Servidor principal: **VΞX LΛTΛM SQUΛD** (`1316232884117311558`).
 ## Inicio y publicación
 
 `iniciar-bot.cmd` valida el entorno y ejecuta V1. `--pruebas` selecciona EXPERIMENTS y `--preparar` no conecta el bot. `scripts/start.js --check` valida la selección sin iniciar otra instancia.
+
+En producción, los canales permanentes se reutilizan. Si falta un canal del mapa, el arranque indica su nombre e ID para revisar la configuración. Las salas temporales y los canales de torneos siguen el flujo de su función.
 
 La guía pública se mantiene en HTML/CSS y se renderiza a tres imágenes para Discord. `scripts/publish-v1.js --publish` actualiza las mismas publicaciones guardadas en SQLite; no menciona roles ni envía notificaciones masivas.
 

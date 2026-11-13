@@ -9,6 +9,7 @@ import { tournamentModal, draftPanel, draftControl, tournamentPayload, registrat
 import { noMentions, privateFlags, safe, card, row, button } from './ui.js';
 import { boundRole, assertPermanentRoleCreation } from './role-provisioning.js';
 import { requireOperator, canOperate } from './admin-access.js';
+import { requireProductionChannel } from './channel-names.js';
 
 export const tournamentCommands = ['torneo', 'torneos', 'torneo-formar-equipo', 'torneo-chat-de-voz-general', 'torneo-chat-de-voz-equipos'];
 export function requireTournamentAdmin(i) {
@@ -41,6 +42,7 @@ export class Tournaments {
       }
     }
     let channel = settings.tournamentsChannel ? await fetchOrNull(() => guild.channels.fetch(settings.tournamentsChannel)) : null;
+    requireProductionChannel(guild, channel, 'anuncios de torneos');
     if (!channel) {
       const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.name === 'torneos');
       if (matches.size > 1) throw new UserError('Hay varios canales #torneos. Conserva uno para los anuncios de torneos.');
